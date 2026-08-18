@@ -58,6 +58,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 ## For the use of custom User class
 AUTH_USER_MODEL = 'users.User'
 ## For the rest frameworks JWT token auth
