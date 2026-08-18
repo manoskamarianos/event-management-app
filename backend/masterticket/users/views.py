@@ -100,12 +100,19 @@ class ApproveUser(generics.GenericAPIView):
                 {"error": "Field \"approve\" must be boolean"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+        askedforadmin = ""
+        if approve:
+            if user.requested_role == "admin":
+                askedforadmin = "The user asked for admin. Fallback to Guest."
+                user.role = "guest" 
+            else:
+                user.role = user.requested_role    
+        user.requested_role = None 
         user.approved = approve
         user.save()
         approve_str = "approved" if approve else "rejected"
         return Response(
-            {"message": f"User {user.username} with id {user.id} successfully {approve_str}"},
+            {"message": f"User {user.username} with id {user.id} successfully {approve_str}. {askedforadmin}"},
             status=status.HTTP_200_OK
         )
             

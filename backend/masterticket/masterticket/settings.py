@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'corsheaders',
     ## Mine
     "users",
+    "events"
 ]
 
 ##Custom JWT tokens settings
