@@ -19,7 +19,7 @@ class Event(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft"
         PUBLISHED = "published"
-        COMPLETED = "complete"
+        COMPLETED = "completed"
         CANCELLED = "cancelled"
     
     title= models.CharField(max_length=200)
@@ -39,6 +39,17 @@ class Event(models.Model):
     event_type = models.ForeignKey(Event_type,on_delete=models.PROTECT,related_name="events")
     organizer= models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name="organized_events",null=True)
     categories= models.ManyToManyField(Category, related_name="events")
+    
+    @property
+    def current_status(self):
+        from django.utils import timezone
+        if self.status in ["cancelled","completed"]:
+            return self.status
+        if self.end_date_time and self.end_date_time<= timezone.now() and self.status != "draft":
+            self.status= "completed"
+            self.save()
+            return "completed"
+        return self.status
     
 class Ticket_type(models.Model):
     name= models.CharField(max_length=100)

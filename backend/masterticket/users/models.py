@@ -9,7 +9,7 @@ class User(AbstractUser):
         GUEST = 'guest'
         ORGANIZER = 'organizer'
         PARTICIPANT = 'participant'
-
+    email = models.EmailField(unique=True)
     role = models.CharField(max_length= 20, choices= Role.choices, default= Role.GUEST)
     requested_role = models.CharField(max_length= 20, choices= Role.choices, default= Role.GUEST,null= True,blank=True)
     approved = models.BooleanField(default= False)

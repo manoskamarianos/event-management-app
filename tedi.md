@@ -133,46 +133,46 @@ Booking: {
 MASTER_TICKET_PROJECT
 │
 ├── APP: users (Existing)
-│   ├── Models: Custom User (Admin, Organizer, Participant, Guest)
-│   └── APIs: Authentication, User Profiles, Role Requests, Admin Approvals
+│   ├── Models: Custom User (Admin, Organizer, Participant, Guest) [DONE]
+│   └── APIs: Authentication, User Profiles, Role Requests, Admin Approvals [DONE]
 │
 └── APP: events (New)
     │
     ├── MODELS
-    │   ├── Category
-    │   │   └── Fields: name
+    │   ├── Category [DONE]
+    │   │   └── Fields: name [DONE]
     │   │
-    │   ├── Event
-    │   │   ├── Fields: title, event_type, venue, address, city, country
-    │   │   ├── Fields: start_datetime, end_datetime, capacity, status, description
-    │   │   ├── Relations: organizer (FK -> User), categories (M2M -> Category)
-    │   │   └── Reverse Access: ticket_types, bookings, media
+    │   ├── Event [DONE]
+    │   │   ├── Fields: title, event_type, venue, address, city, country [DONE]
+    │   │   ├── Fields: start_datetime, end_datetime, capacity, status, description [DONE]
+    │   │   ├── Relations: organizer (FK -> User), categories (M2M -> Category) [DONE]
+    │   │   └── Reverse Access: ticket_types, bookings, media [DONE]
     │   │
-    │   ├── TicketType
-    │   │   ├── Fields: name, price, quantity, available
-    │   │   └── Relations: event (FK -> Event, related_name='ticket_types')
+    │   ├── TicketType [DONE]
+    │   │   ├── Fields: name, price, quantity, available [DONE]
+    │   │   └── Relations: event (FK -> Event, related_name='ticket_types') [DONE]
     │   │
-    │   ├── Booking
-    │   │   ├── Fields: number_of_tickets, total_cost, booking_status, created_at
-    │   │   └── Relations: event (FK -> Event), attendee (FK -> User), ticket_type (FK -> TicketType)
+    │   ├── Booking [PENDING]
+    │   │   ├── Fields: number_of_tickets, total_cost, booking_status, created_at [PENDING]
+    │   │   └── Relations: event (FK -> Event), attendee (FK -> User), ticket_type (FK -> TicketType) [PENDING]
     │   │
-    │   └── Media
-    │       ├── Fields: photo
-    │       └── Relations: event (FK -> Event, related_name='media')
+    │   └── Media [DONE]
+    │       ├── Fields: photo [DONE]
+    │       └── Relations: event (FK -> Event, related_name='media') [DONE]
     │
     └── APIS & ENDPOINTS
         │
         ├── Organizer Event Management
-        │   ├── POST   /api/events/             -> Create Event (DRAFT state)
-        │   ├── PATCH  /api/events/<id>/        -> Edit Event details or Publish
-        │   ├── DELETE /api/events/<id>/        -> Delete Event (Allowed ONLY if no bookings exist)
-        │   ├── POST   /api/events/<id>/cancel/ -> Cancel Event (Sets state to CANCELLED)
-        │   └── GET    /api/events/my-events/   -> List organizer's own events & see booking stats
+        │   ├── POST   /api/events/             -> Create Event (DRAFT state) [DONE]
+        │   ├── PATCH  /api/events/<id>/        -> Edit Event details or Publish [DONE]
+        │   ├── DELETE /api/events/<id>/        -> Delete Event (Allowed ONLY if no bookings exist) [DONE]
+        │   ├── POST   /api/events/<id>/cancel/ -> Cancel Event (Sets state to CANCELLED) [DONE]
+        │   └── GET    /api/events/my-events/   -> List organizer's own events & see booking stats [DONE]
         │
         ├── Public / Attendee Browsing
-        │   ├── GET    /api/events/public/      -> Filterable list (title, category, date, price, location)
-        │   └── GET    /api/events/public/<id>/ -> Retrieve single event details + active ticket types
+        │   ├── GET    /api/events/public/      -> Filterable list (title, category, date, price, location) [DONE]
+        │   └── GET    /api/events/public/<id>/ -> Retrieve single event details + active ticket types [DONE]
         │
         └── Booking Transactions
-            ├── POST   /api/bookings/           -> Create Booking (Atomic transaction, deducts availability)
-            └── GET    /api/bookings/my-bookings/ -> List participant's active/past bookings
+            ├── POST   /api/bookings/           -> Create Booking (Atomic transaction, deducts availability) [PENDING]
+            └── GET    /api/bookings/my-bookings/ -> List participant's active/past bookings [PENDING]
