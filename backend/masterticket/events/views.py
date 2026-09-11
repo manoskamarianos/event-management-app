@@ -52,15 +52,10 @@ class ManageEvent(generics.GenericAPIView):
 
     def my_validate(self, event):
         if event.organizer != self.request.user and self.request.user.role != "admin":
-            return Response(
-                {"error": "Invalid permissions"},
-                status=status.HTTP_403_FORBIDDEN
-                )
+            return Response({"error": "Invalid permissions"},status=status.HTTP_403_FORBIDDEN)
+        
         if event.current_status == "cancelled" or event.current_status == "completed" or event.bookings.exists():
-            return Response(
-                {"error": "Event cannot be modified"},
-                status=status.HTTP_400_BAD_REQUEST
-                )
+            return Response({"error": "Event cannot be modified"},status=status.HTTP_400_BAD_REQUEST)
         
         return None
 

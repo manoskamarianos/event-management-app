@@ -5,6 +5,7 @@ import requests
 AUTH_BASE_URL = "http://127.0.0.1:8000/api/auth"
 EVENTS_BASE_URL = "http://127.0.0.1:8000/api/events"
 BOOKINGS_BASE_URL = "http://127.0.0.1:8000/api/events/bookings"
+MESSAGES_BASE_URL = "http://127.0.0.1:8000/api/messages"
 
 
 def print_section(title):
@@ -68,7 +69,9 @@ def create_and_approve_user(session, prefix="user", role="organizer"):
     session.patch(f"{AUTH_BASE_URL}/admin/users/{user_id}/approve/", json={"approve": True}, headers=admin_headers)
     
     login_res = session.post(f"{AUTH_BASE_URL}/login/", json={"username": user_data["username"], "password": user_data["password"]})
-    return user_data, {"Authorization": f"Bearer {login_res.json().get('access')}"}
+    
+    # Returning user_id as well so we can use it as the "receiver" ID
+    return user_data, {"Authorization": f"Bearer {login_res.json().get('access')}"}, user_id
 
 
 def run_all_tests():
@@ -76,9 +79,9 @@ def run_all_tests():
 
     # 1. AUTH & USER SETUP
     print_section("1. User Setup & Role Provisioning")
-    _, org_headers = create_and_approve_user(session, prefix="org", role="organizer")
-    _, part_a_headers = create_and_approve_user(session, prefix="part_a", role="participant")
-    _, part_b_headers = create_and_approve_user(session, prefix="part_b", role="participant")
+    _, org_headers, org_id = create_and_approve_user(session, prefix="org", role="organizer")
+    _, part_a_headers, part_a_id = create_and_approve_user(session, prefix="part_a", role="participant")
+    _, part_b_headers, part_b_id = create_and_approve_user(session, prefix="part_b", role="participant")
     print("✓ Created Organizer, Participant A, and Participant B.")
 
     # 2. EVENT ENDPOINTS & EDGE CASES
@@ -138,11 +141,9 @@ def run_all_tests():
     vip_qty = next(t for t in ev_check["ticket_types"] if t["name"] == "VIP")["available"]
     print(f"    --> VIP Stock during PENDING: {vip_qty} (Expected: 5)")
 
-    # Fixed path: /bookings/<pk>/modify/
     res = session.patch(f"{BOOKINGS_BASE_URL}/{booking_a_id}/modify/", json={"number_of_tickets": 1}, headers=part_b_headers)
     print_test("Participant B Modifying Participant A's Booking", res.status_code, res.text, [404])
 
-    # Fixed path: /bookings/<pk>/modify/
     res = session.patch(f"{BOOKINGS_BASE_URL}/{booking_a_id}/modify/", json={"number_of_tickets": 3}, headers=part_a_headers)
     print_test("Participant A Modifies Booking Quantity to 3", res.status_code, res.text, [200])
 
@@ -174,7 +175,6 @@ def run_all_tests():
     res = session.post(f"{BOOKINGS_BASE_URL}/{booking_a_id}/cancel/", headers=part_a_headers)
     print_test("Cancelling CONFIRMED Booking (Should be blocked)", res.status_code, res.text, [400])
 
-    # Fixed path: /bookings/<pk>/modify/
     res = session.patch(f"{BOOKINGS_BASE_URL}/{booking_a_id}/modify/", json={"number_of_tickets": 1}, headers=part_a_headers)
     print_test("Modifying CONFIRMED Booking (Should be blocked/not found)", res.status_code, res.text, [404])
 
@@ -192,6 +192,65 @@ def run_all_tests():
     print_section("6. List & Read View Verification")
     res = session.get(f"{BOOKINGS_BASE_URL}/", headers=part_a_headers)
     print_test("Participant A Lists Bookings", res.status_code, f"Found {len(res.json()) if res.status_code == 200 else 0} item(s)", [200])
+
+
+    # =========================================================================
+    # 7. MESSAGING MODULE TESTS
+    # =========================================================================
+    print_section("7. Private Messaging Module (Organizer <-> Attendee)")
+
+    # 7.1 Try to send without valid booking
+    msg_fail_payload = {"subject": "Hey", "body": "Need info", "receiver": org_id, "event": event_id}
+    res = session.post(f"{MESSAGES_BASE_URL}/send/", json=msg_fail_payload, headers=part_b_headers)
+    print_test("Participant B (No Booking) Messaging Organizer", res.status_code, res.text, [400])
+
+    # 7.2 Try to send to self
+    msg_self_payload = {"subject": "Note to self", "body": "test", "receiver": part_a_id, "event": event_id}
+    res = session.post(f"{MESSAGES_BASE_URL}/send/", json=msg_self_payload, headers=part_a_headers)
+    print_test("Participant A Messaging Self", res.status_code, res.text, [400])
+
+    # 7.3 Valid Attendee -> Organizer
+    msg_1_payload = {"subject": "Parking", "body": "Is there parking available?", "receiver": org_id, "event": event_id}
+    res = session.post(f"{MESSAGES_BASE_URL}/send/", json=msg_1_payload, headers=part_a_headers)
+    print_test("Participant A Sends Message to Organizer", res.status_code, res.text, [201])
+    msg_1_id = res.json().get("id")
+
+    # 7.4 Valid Organizer -> Attendee
+    msg_2_payload = {"subject": "Re: Parking", "body": "Yes, behind the building.", "receiver": part_a_id, "event": event_id}
+    res = session.post(f"{MESSAGES_BASE_URL}/send/", json=msg_2_payload, headers=org_headers)
+    print_test("Organizer Replies to Participant A", res.status_code, res.text, [201])
+    msg_2_id = res.json().get("id")
+
+    # 7.5 Check Inbox list
+    res = session.get(f"{MESSAGES_BASE_URL}/inbox/", headers=org_headers)
+    print_test("Organizer Lists Inbox", res.status_code, res.text, [200])
+    
+    # 7.6 Privacy Check: Part B tries to read Part A's message
+    res = session.get(f"{MESSAGES_BASE_URL}/{msg_1_id}/", headers=part_b_headers)
+    print_test("Participant B Attempts to Read Participant A's Message", res.status_code, res.text, [404])
+
+    # 7.7 Detail View & Auto-Read Trigger
+    res = session.get(f"{MESSAGES_BASE_URL}/{msg_1_id}/", headers=org_headers)
+    print_test("Organizer Reads Message (Triggers Auto-Read)", res.status_code, res.text, [200])
+    if res.status_code == 200:
+        is_read_status = res.json().get("read")
+        print(f"    --> Auto-Read flipped to True? {'YES (CORRECT)' if is_read_status else 'NO (BUG)'}")
+
+    # 7.8 Bulk Soft Delete
+    del_payload = {"message_ids": [msg_1_id]}
+    res = session.post(f"{MESSAGES_BASE_URL}/delete/", json=del_payload, headers=org_headers)
+    print_test("Organizer Soft-Deletes Message from Inbox", res.status_code, res.text, [200])
+
+    # 7.9 Verify Soft-Delete Isolation
+    res_inbox = session.get(f"{MESSAGES_BASE_URL}/inbox/", headers=org_headers)
+    if res_inbox.status_code == 200:
+        org_has_msg = any(m["id"] == msg_1_id for m in res_inbox.json())
+        print(f"    --> Message still in Organizer's Inbox? {'YES (BUG)' if org_has_msg else 'NO (CORRECT)'}")
+
+    res_outbox = session.get(f"{MESSAGES_BASE_URL}/outbox/", headers=part_a_headers)
+    if res_outbox.status_code == 200:
+        part_a_has_msg = any(m["id"] == msg_1_id for m in res_outbox.json())
+        print(f"    --> Message still in Participant A's Outbox? {'YES (CORRECT)' if part_a_has_msg else 'NO (BUG)'}")
 
     print("\n🎉 ALL TESTS COMPLETED SUCCESSFULLY!")
 
