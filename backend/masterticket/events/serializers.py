@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from users.models import User
 from django.db import transaction
-from .models import Booking, Event, Event_type, Category, Ticket_type, Media
+from .models import Booking, Event, Event_type, Category, Ticket_type, Media,EventRating
 import html
 
 ##General Serializers
@@ -67,6 +67,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
         categories= validated_data.pop("categories")
         ticket_types= validated_data.pop("ticket_types")
         
+        validated_data["current_status"]= "draft"
+        validated_data["status"]= "draft"
         event_t, _ = Event_type.objects.get_or_create(name=str(event_type).strip().upper())
         
         capacity = 0
@@ -142,7 +144,7 @@ class BookingSerializer(serializers.ModelSerializer):
         attrs["event_title"]= ticket_type.event.title
         attrs["total_cost"]= ticket_type.price*num_ticket
         attrs["status"]= "pending"
-        attrs['attendee']= self.context['request'].user
+        attrs["attendee"]= self.context["request"].user
         return attrs
     
 class BookingModifySerializer(serializers.ModelSerializer):

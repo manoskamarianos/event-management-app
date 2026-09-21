@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 class Event_type(models.Model):
     name = models.CharField(max_length=50,unique=True)
@@ -77,3 +78,13 @@ class Booking(models.Model):
 class Media(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="media")
     photo = models.ImageField(upload_to="event_photos/")
+    
+##Recommendation system
+class EventRating(models.Model):
+    user= models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="ratings")
+    event= models.ForeignKey(Event, on_delete=models.CASCADE, related_name="ratings")
+    
+    rating= models.FloatField(default=1.0, validators= [MinValueValidator(1.0),MaxValueValidator(5.0)])
+    
+    class Meta:
+      unique_together= ("user","event")

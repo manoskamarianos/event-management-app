@@ -9,6 +9,14 @@ from .models import Event, Category, Event_type,Booking, Ticket_type
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
+from ..MyMessages.models import Message
+from ..users.models import User
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
+import django_filters
+from django_filters import BaseInFilter, CharFilter
+from .models import EventRating
 
 ##Event views
 def perm_event_list(user):
@@ -17,12 +25,36 @@ def perm_event_list(user):
     if user.role == "organizer":
         return Event.objects.filter(Q(status="published")|Q(status="completed")| Q(status="cancelled")|Q(organizer=user))
     return Event.objects.filter(Q(status="published")|Q(status="completed")| Q(status="cancelled"))
-                                
+
+class EventPagination(PageNumberPagination):
+    page_size = 10 
+    page_size_query_param = "size" 
+    max_page_size = 100
+    
+class CharInFilter(BaseInFilter, CharFilter):
+    pass
+class EventFilter(django_filters.FilterSet):
+    price_min= django_filters.NumberFilter(field_name="ticket_types__price", lookup_expr="gte", distinct=True)
+    price_max= django_filters.NumberFilter(field_name="ticket_types__price", lookup_expr="lte", distinct=True)
+    start_date= django_filters.DateTimeFilter(field_name="start_date_time", lookup_expr="gte")    
+    end_date= django_filters.DateTimeFilter(field_name="end_date_time", lookup_expr="lte")
+    category= CharInFilter(field_name="categories__name",lookup_expr="in",distinct=True)
+    class Meta:
+        model= Event
+        fields= ["start_date", "end_date", "price_min", "price_max", "category"]  
+                                  
 class ListEvents(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class= EventReadSerializer
+    
+    pagination_class= EventPagination
+    
+    filter_backends= [DjangoFilterBackend,filters.SearchFilter]
+    filterset_class= EventFilter
+    search_fields= ["title","description","city","country","venue","address"]
+    
     def get_queryset(self):
-        return perm_event_list(self.request.user).order_by('-start_date_time')
+        return perm_event_list(self.request.user).order_by('-start_date_time').distinct()
 
 class CreateEvent(generics.CreateAPIView):
     permission_classes= [IsOrganizer]
@@ -35,6 +67,19 @@ class RetrieveEvent(generics.RetrieveAPIView):
     serializer_class= EventReadSerializer
     def get_queryset(self):
         return perm_event_list(self.request.user)
+    def get_object(self):
+        event= super().get_object()
+        user= self.request.user
+        
+        if user.role in ["admin","organizer"]:
+            return event
+        
+        rating= EventRating.objects.filter(user=user, event= event).first()
+        if not rating:
+            rating= EventRating.objects.create(user= user,event= event)    
+        rating.rating = max((min(1.0 + (0.25 + rating.rating), 2.5)),rating.rating)
+        rating.save()
+        return event
 
 class ManageEvent(generics.GenericAPIView):
     permission_classes= [IsOrganizer]
@@ -50,29 +95,55 @@ class ManageEvent(generics.GenericAPIView):
             return EventCreateSerializer
         return EventReadSerializer
 
-    def my_validate(self, event):
+    def  my_validate(self, event):
         if event.organizer != self.request.user and self.request.user.role != "admin":
             return Response({"error": "Invalid permissions"},status=status.HTTP_403_FORBIDDEN)
         
-        if event.current_status == "cancelled" or event.current_status == "completed" or event.bookings.exists():
+        if event.current_status == "cancelled" or event.current_status == "completed" :
             return Response({"error": "Event cannot be modified"},status=status.HTTP_400_BAD_REQUEST)
         
+        if event.bookings.exists():
+            if self.request.method=="DELETE":
+                return Response({"error": "Event cannot be deleted"},status=status.HTTP_400_BAD_REQUEST)
+            if self.request.data.get("current_status") != "cancelled":
+                return Response({"error": "Event cannot be modified"},status=status.HTTP_400_BAD_REQUEST)
+        
         return None
+    
+    def broadcast_cancel(self,event):
+        attendees= User.objects.filter(booking__event= event).distinct()
+        
+        cancel_messages=[]
+        for attendee in attendees:
+            cancel_messages.append(Message(sender= event.organizer,receiver= attendee,event= event,
+                                           subject= f"Event cancellation: {event.title}",
+                                           body=f"The event with title \"{event.title}\" was cancelled"
+                                           )
+                                   )
+        if cancel_messages:
+            Message.objects.bulk_create(cancel_messages)
+        
+            
 
     def patch(self, request, *args, **kwargs):
         event = self.get_object()
-        if error := self.my_validate(event):
+        error= self.my_validate(event)
+        if error:
             return error
 
         serializer = self.get_serializer(event, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        
+        if serializer.validated_data.get("current_status")== "cancelled":
+            self.broadcast_cancel(event)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
     def delete(self, request, *args, **kwargs):
         event = self.get_object()
-        if error := self.my_validate(event):
+        error = self.my_validate(event)
+        if error:
             return error
 
         event.delete()
@@ -129,6 +200,11 @@ class ConfirmBooking(generics.GenericAPIView):
     permission_classes= [IsParticipant]
     serializer_class= BookingSerializer
     
+    def booking_rating(self,user,event):
+        if user.role in ["admin","organizer"]:
+            return
+        EventRating.objects.update_or_create(user= user,event= event, defaults={"rating":5.0})
+    
     @transaction.atomic
     def post(self,request,pk):
         booking = get_object_or_404(Booking, pk= pk , attendee= request.user)
@@ -144,6 +220,6 @@ class ConfirmBooking(generics.GenericAPIView):
         ticket_type.save()
         booking.status= "confirmed"
         booking.save()
+        self.booking_rating(request.user,booking.event)
         
         return Response(self.get_serializer(booking).data, status= status.HTTP_200_OK)
-            
