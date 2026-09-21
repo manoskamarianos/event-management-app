@@ -129,3 +129,50 @@ Booking: {
     media
 } 
 ```
+
+MASTER_TICKET_PROJECT
+│
+├── APP: users (Existing)
+│   ├── Models: Custom User (Admin, Organizer, Participant, Guest) [DONE]
+│   └── APIs: Authentication, User Profiles, Role Requests, Admin Approvals [DONE]
+│
+└── APP: events (New)
+    │
+    ├── MODELS
+    │   ├── Category [DONE]
+    │   │   └── Fields: name [DONE]
+    │   │
+    │   ├── Event [DONE]
+    │   │   ├── Fields: title, event_type, venue, address, city, country [DONE]
+    │   │   ├── Fields: start_datetime, end_datetime, capacity, status, description [DONE]
+    │   │   ├── Relations: organizer (FK -> User), categories (M2M -> Category) [DONE]
+    │   │   └── Reverse Access: ticket_types, bookings, media [DONE]
+    │   │
+    │   ├── TicketType [DONE]
+    │   │   ├── Fields: name, price, quantity, available [DONE]
+    │   │   └── Relations: event (FK -> Event, related_name='ticket_types') [DONE]
+    │   │
+    │   ├── Booking [PENDING]
+    │   │   ├── Fields: number_of_tickets, total_cost, booking_status, created_at [PENDING]
+    │   │   └── Relations: event (FK -> Event), attendee (FK -> User), ticket_type (FK -> TicketType) [PENDING]
+    │   │
+    │   └── Media [DONE]
+    │       ├── Fields: photo [DONE]
+    │       └── Relations: event (FK -> Event, related_name='media') [DONE]
+    │
+    └── APIS & ENDPOINTS
+        │
+        ├── Organizer Event Management
+        │   ├── POST   /api/events/             -> Create Event (DRAFT state) [DONE]
+        │   ├── PATCH  /api/events/<id>/        -> Edit Event details or Publish [DONE]
+        │   ├── DELETE /api/events/<id>/        -> Delete Event (Allowed ONLY if no bookings exist) [DONE]
+        │   ├── POST   /api/events/<id>/cancel/ -> Cancel Event (Sets state to CANCELLED) [DONE]
+        │   └── GET    /api/events/my-events/   -> List organizer's own events & see booking stats [DONE]
+        │
+        ├── Public / Attendee Browsing
+        │   ├── GET    /api/events/public/      -> Filterable list (title, category, date, price, location) [DONE]
+        │   └── GET    /api/events/public/<id>/ -> Retrieve single event details + active ticket types [DONE]
+        │
+        └── Booking Transactions
+            ├── POST   /api/bookings/           -> Create Booking (Atomic transaction, deducts availability) [PENDING]
+            └── GET    /api/bookings/my-bookings/ -> List participant's active/past bookings [PENDING]
