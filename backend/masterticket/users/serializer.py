@@ -25,22 +25,14 @@ class UserSerializer(serializers.ModelSerializer):
     password_confirm = serializers.CharField(write_only=True)
     class Meta:
         model = User
-        fields = ["id","username","password","password_confirm","role","requested_role","approved","first_name","last_name","email","telephone","address","taxNumber","postcode"]
+        fields = ["id","username","password","password_confirm","role","requested_role","approved","first_name","last_name","email","telephone","address","taxNumber","postcode","longitude","latitude"]
         extra_kwargs = {"password":{"write_only": True, "required": True},
                         "approved":{"read_only": True},
                         "role":{"read_only": True},
                         "email":{"required": True},
-                        # "longitude": {"write_only": True},
-                        # "latitude": {"write_only": True},
+                        "longitude": {"write_only": True},
+                        "latitude": {"write_only": True},
                         }
-    
-    # def get_location(self, obj):
-    #     if obj.latitude is not None and obj.longitude is not None:
-    #         return {
-    #             "latitude": obj.latitude,
-    #             "longitude": obj.longitude
-    #         }
-    #     return None
     
     def validate(self, attrs):
         if attrs.get("password") != attrs.get("password_confirm"):
@@ -58,7 +50,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id","username","postcode","requested_role","approved","first_name","last_name","email","telephone","address","taxNumber"]
+        fields = ["id","username","postcode","requested_role","approved","first_name","last_name","email","telephone","address","taxNumber","longitude","latitude"]
         extra_kwargs = {"approved":{"read_only": True},
                         "role":{"read_only": True},
                         "requested_role":{"read_only": True},
@@ -71,10 +63,3 @@ class UserProfileSerializer(serializers.ModelSerializer):
             if isinstance(value, str):
                 attrs[field] = html.escape(value.strip())
         return super().validate(attrs)
-    # def get_location(self, obj):
-    #     if obj.latitude is not None and obj.longitude is not None:
-    #         return {
-    #             "latitude": obj.latitude,
-    #             "longitude": obj.longitude
-    #         }
-    #     return None

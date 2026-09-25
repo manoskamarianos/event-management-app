@@ -1,0 +1,8 @@
+Django==6.1.1
+djangorestframework==3.18.0
+djangorestframework_simplejwt==5.5.1
+django-cors-headers
+django-filter
+Pillow
+numpy==2.5.3
+Requests==2.34.2
