@@ -1,0 +1,37 @@
+# Starts the whole app:  docker compose up --build
+#   Site:  http://localhost:3000        API:  http://localhost:8000/api
+# Ports are bound to 127.0.0.1 only: the backend runs Django in DEBUG mode with a known
+# admin password, so it is meant for local use, not for exposing on a network.
+services:
+  backend:
+    build: ./backend/masterticket
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+      # Database to start from on the first run. Other options: dbs/big_db.sqlite3
+      # (5000 users) or dbs/empty.sqlite3 (empty; only the admin above exists).
+      SEED_DB: ${SEED_DB:-db.sqlite3}
+    volumes:
+      - backend-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), 2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend-data:
