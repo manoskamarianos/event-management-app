@@ -9,14 +9,18 @@ from .models import Event, Category, Event_type,Booking, Ticket_type
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
-from ..MyMessages.models import Message
-from ..users.models import User
+from MyMessages.models import Message
+from users.models import User
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 from django_filters import BaseInFilter, CharFilter
 from .models import EventRating
+import os
+import numpy as np
+from django.conf import settings
+
 
 ##Event views
 def perm_event_list(user):
@@ -223,3 +227,69 @@ class ConfirmBooking(generics.GenericAPIView):
         self.booking_rating(request.user,booking.event)
         
         return Response(self.get_serializer(booking).data, status= status.HTTP_200_OK)
+    
+##Recommendation View
+    
+class Recommend(generics.ListAPIView):
+    permission_classes= [IsParticipant]
+    serializer_class= EventReadSerializer
+    Rec_vectors= None
+    
+    @staticmethod
+    def Rec_vectors_load():
+        if Recommend.Rec_vectors is None:
+            path= os.path.join(settings.BASE_DIR, "Recommendation_Vec",  "Recommendation_Vec.npz")
+            if os.path.exists(path):
+                data = np.load(path, allow_pickle=True)
+                Recommend.Rec_vectors= {"V":data["V"],"F":data["F"],"b":data["b"],"c":data["c"],"m":data["m"],"users_map":data["users_map"].item(),"events_map":data["events_map"].item()}
+        return Recommend.Rec_vectors
+
+    
+    def get(self,request, *args, **kwargs):
+        
+        uid= request.user.id 
+        Rec_vectors= self.Rec_vectors_load()
+        
+        if not Rec_vectors:
+            return Response({"error": "More interactions needed for recommendation."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+            
+        users_map= Rec_vectors["users_map"]
+        events_map= Rec_vectors["events_map"]
+        V= Rec_vectors["V"]
+        F= Rec_vectors["F"]
+        b= Rec_vectors["b"]
+        c= Rec_vectors["c"]
+        m= Rec_vectors["m"]
+        
+        if uid not in users_map:##might add fold in later
+            return Response({"error": "More interactions needed for recommendation."},
+                                            status=status.HTTP_200_OK)
+
+        Prediction_vector= m+b[users_map[uid]]+c+np.dot(F,V[users_map[uid]])
+        top_events= np.argsort(Prediction_vector)[::-1][:10]
+        
+        events_map_inverted= {}
+        for id, idx in events_map.items():
+            events_map_inverted[idx]= id
+        rec_event_ids = []
+        for idx in top_events:
+            if idx in events_map_inverted:
+                rec_event_ids.append(events_map_inverted[idx])
+        database_events= Event.objects.filter(id__in= rec_event_ids)
+        
+        dict_event= {}
+        for event in database_events:
+            dict_event[event.id]= event
+        Recommendation= []
+        for id in rec_event_ids:
+            if id in dict_event:
+                Recommendation.append(dict_event[id])
+                 
+        
+        
+        serializer=  self.get_serializer(Recommendation, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+        
+            
