@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { RegistrationStatus } from "@/lib/userHelpers";
 
 interface UserActionsMenuProps {
-  approved: boolean;
+  userId: number;
+  status: RegistrationStatus;
+  onApprove: () => void;
+  onReject: () => void;
 }
 
-export default function UserActionsMenu({ approved }: UserActionsMenuProps) {
+export default function UserActionsMenu({ userId, status, onApprove, onReject }: UserActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,21 +50,38 @@ export default function UserActionsMenu({ approved }: UserActionsMenuProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-black/[.08] bg-white py-1 shadow-lg dark:border-white/[.145] dark:bg-zinc-900">
-          {!approved && (
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              Approve user
-            </button>
-          )}
-          <button
-            type="button"
+        <div className="absolute right-0 z-10 mt-1 w-48 rounded-md border border-black/[.08] bg-white py-1 shadow-lg dark:border-white/[.145] dark:bg-zinc-900">
+          <Link
+            href={`/admin/users/${userId}`}
             className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            Edit user details
-          </button>
+            View details
+          </Link>
+          {/* Only pending users carry a requested role that can be granted or refused. */}
+          {status === "pending" && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onApprove();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Approve user
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onReject();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+              >
+                Reject registration
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

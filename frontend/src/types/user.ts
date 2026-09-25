@@ -1,13 +1,11 @@
-export interface User {
-  userid: number;
+import type { UserRole } from "@/api";
+
+export type { UserRole };
+
+/** The signed-in user, as kept in the session. */
+export interface AuthUser {
+  id: number;
   username: string;
-  password: string;
-  role: "adimn" | "guest" | "orginiser" | "participant";
-  approved: boolean;
-  name: string;
-  surename: string;
-  email: string;
-  telephone: number;
-  address: string;
-  taxNumber: string;
+  role: UserRole;
+  firstName: string;
 }
