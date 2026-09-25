@@ -119,7 +119,9 @@ function ManageEvents() {
               Manage events
             </h1>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              {myEvents.length} event{myEvents.length === 1 ? "" : "s"} created by you
+              {loading
+                ? "Loading events…"
+                : `${myEvents.length} event${myEvents.length === 1 ? "" : "s"} created by you`}
             </p>
           </div>
           <Link

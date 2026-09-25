@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { api } from "@/api";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventsContext";
 import { useMyBookings } from "@/hooks/useMyBookings";
+import { useScopedData } from "@/hooks/useScopedData";
+import { toEventItem } from "@/lib/eventMappers";
 import { formatDate, recommendEventsFor } from "@/lib/eventHelpers";
 import { decodeEntities } from "@/lib/text";
 import { readVisited } from "@/lib/visitedEvents";
@@ -20,6 +23,15 @@ export default function HomePage() {
   );
 }
 
+// Recommendations are a nice-to-have: any failure just means "no server recommendations".
+async function fetchRecommendations() {
+  try {
+    return (await api.events.listRecommendations()).map(toEventItem);
+  } catch {
+    return [];
+  }
+}
+
 function Home() {
   const { currentUser } = useAuth();
   const { events } = useEvents();
@@ -32,9 +44,21 @@ function Home() {
       booking.eventId && booking.status !== "CANCELLED" ? [booking.eventId] : [],
     ),
   );
-  const recommended = recommendEventsFor(events, bookedEventIds, visited);
   const isOrganizer = currentUser?.role === "organizer";
   const isParticipant = currentUser?.role === "participant";
+
+  // Only participants are part of the trained model. The server does not filter its answer, so
+  // drop events that cannot be booked or were already booked.
+  const { data: modelRecommendations } = useScopedData(
+    isParticipant && currentUser ? currentUser.id : null,
+    fetchRecommendations,
+  );
+  const fromModel = (modelRecommendations ?? [])
+    .filter((event) => event.status === "PUBLISHED" && !bookedEventIds.has(event.eventId))
+    .slice(0, 3);
+  // Without model output (new users, guests) fall back to the events they booked or visited.
+  const recommended =
+    fromModel.length > 0 ? fromModel : recommendEventsFor(events, bookedEventIds, visited);
 
   return (
     <div className="flex flex-1 flex-col px-4 py-12 sm:px-8">
@@ -78,7 +102,7 @@ function Home() {
         {isParticipant && bookings.length > 0 && (
           <div className="mt-12">
             <h2 className="text-lg font-medium text-zinc-950 dark:text-zinc-50">My bookings</h2>
-            <ul className="mt-4 divide-y divide-black/[.08] rounded-xl border border-black/[.08] dark:divide-white/[.145] dark:border-white/[.145]">
+            <ul className="mt-4 divide-y divide-black/[.08] overflow-hidden rounded-xl border border-black/[.08] dark:divide-white/[.145] dark:border-white/[.145]">
               {bookings.slice(0, 5).map((booking) => (
                 <li
                   key={booking.bookingId}

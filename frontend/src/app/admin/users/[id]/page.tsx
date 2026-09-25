@@ -81,6 +81,9 @@ function AdminUserDetail({ userId }: { userId: number }) {
     ["Telephone", user.telephone],
     ["Address", `${decodeEntities(user.address)}, ${user.postcode}`],
     ["Tax number", user.taxNumber],
+    ...(user.latitude && user.longitude
+      ? ([["Location", `${user.latitude}, ${user.longitude}`]] as [string, string][])
+      : []),
     ["Role", roleLabels[user.role]],
     ...(user.requested_role
       ? ([["Requested role", roleLabels[user.requested_role]]] as [string, string][])

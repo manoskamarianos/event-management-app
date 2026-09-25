@@ -87,7 +87,6 @@ function EditEvent({ eventId }: { eventId: string }) {
             longitude: event.geoLocation ? String(event.geoLocation.longitude) : "",
             startDateTime: toDateTimeLocal(event.startDateTime),
             endDateTime: toDateTimeLocal(event.endDateTime),
-            capacity: event.capacity,
             description: event.description,
             ticketTypes: event.ticketTypes.map((tt) => ({
               name: tt.name,

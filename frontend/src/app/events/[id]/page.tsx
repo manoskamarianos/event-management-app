@@ -351,7 +351,7 @@ function EventDetails({ eventId }: { eventId: string }) {
                 </Link>
               )}
             </div>
-            <ul className="mt-2 divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.145] dark:border-white/[.145]">
+            <ul className="mt-2 divide-y divide-black/[.08] overflow-hidden rounded-lg border border-black/[.08] dark:divide-white/[.145] dark:border-white/[.145]">
               {myBookingsHere.map((booking) => (
                 <li
                   key={booking.bookingId}

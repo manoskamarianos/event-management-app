@@ -13,6 +13,9 @@ export interface RegisterPayload {
   address: string;
   taxNumber: string;
   postcode: number;
+  /** Geographic location (spec 2); optional, at most 6 decimal places. */
+  latitude?: number | null;
+  longitude?: number | null;
   requested_role?: UserRole;
 }
 
@@ -37,11 +40,21 @@ export interface RefreshResponse {
   access: string;
 }
 
+/** DRF PageNumberPagination envelope. */
+export interface Paginated<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 export interface UserProfile {
   id: number;
   username: string;
   role: UserRole;
   postcode: number;
+  latitude?: string | null;
+  longitude?: string | null;
   requested_role: UserRole | null;
   approved: boolean;
   first_name: string;
@@ -128,6 +141,7 @@ export interface EventDto {
   bookings?: BookingDto[];
 }
 
+/** `capacity` is not sent: the API sets it to the total quantity of the ticket types. */
 export interface EventInput {
   title: string;
   venue: string;
@@ -138,8 +152,6 @@ export interface EventInput {
   longitude?: number | null;
   start_date_time: string;
   end_date_time: string;
-  /** Total capacity; ticket quantities may not add up to more than this. */
-  capacity?: number;
   status?: EventStatus;
   description: string;
   event_type: string;
@@ -215,3 +227,9 @@ export interface DeleteMessagesPayload {
 export interface DeleteMessagesResponse {
   detail: string;
 }
+
+/**
+ * Body of GET /events/recommendation/: a list of events, or `{ error }` (HTTP 200 or 501)
+ * when the user is not part of the trained model yet.
+ */
+export type RecommendationResponse = EventDto[] | { error: string };

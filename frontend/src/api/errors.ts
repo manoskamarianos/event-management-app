@@ -10,8 +10,12 @@ export class ApiError extends Error {
   }
 
   private static extractMessage(data: unknown, status: number): string {
-    if (typeof data === "string" && data.trim() !== "") return data;
-    if (data && typeof data === "object") {
+    // A string body is only a usable message when it is short plain text. Server crashes come
+    // back as a full HTML debug page, which must never end up in the UI.
+    if (typeof data === "string") {
+      const text = data.trim();
+      if (text !== "" && text.length <= 200 && !text.startsWith("<")) return text;
+    } else if (data && typeof data === "object") {
       const record = data as Record<string, unknown>;
       const candidate = record.detail ?? record.message ?? record.error;
       if (typeof candidate === "string") return candidate;
@@ -22,6 +26,7 @@ export class ApiError extends Error {
         if (typeof flat === "string") return flat;
       }
     }
+    if (status >= 500) return "The server ran into a problem handling this request. Please try again later.";
     return `Request failed with status ${status}`;
   }
 }
@@ -45,6 +50,10 @@ export function describeError(error: unknown, fallback = "Something went wrong. 
     if (entries.length > 1) return entries.map(([key, msg]) => `${key}: ${msg}`).join(" ");
     return error.message.trim() || fallback;
   }
-  if (error instanceof TypeError) return "Could not reach the server. Please check your connection.";
+  // fetch() rejects with a TypeError only when the request never got an answer; other
+  // TypeErrors are bugs in our own code and must not be reported as a connection problem.
+  if (error instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(error.message)) {
+    return "Could not reach the server. Please check your connection.";
+  }
   return fallback;
 }

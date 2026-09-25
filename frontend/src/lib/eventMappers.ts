@@ -76,7 +76,6 @@ export interface EventFormValues {
   longitude: string;
   startDateTime: string;
   endDateTime: string;
-  capacity: number;
   description: string;
   ticketTypes: TicketTypeInput[];
 }
@@ -99,7 +98,6 @@ export function toEventInput(values: EventFormValues, status?: ApiEventStatus): 
     longitude: toCoordinate(values.longitude),
     start_date_time: new Date(values.startDateTime).toISOString(),
     end_date_time: new Date(values.endDateTime).toISOString(),
-    capacity: values.capacity,
     description: values.description.trim(),
     ticket_types: values.ticketTypes.map((tt) => ({
       name: tt.name.trim(),

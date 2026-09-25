@@ -7,12 +7,10 @@ export interface TicketTypeDraft {
 interface TicketTypesEditorProps {
   value: TicketTypeDraft[];
   onChange: (value: TicketTypeDraft[]) => void;
-  capacity: number;
 }
 
-export default function TicketTypesEditor({ value, onChange, capacity }: TicketTypesEditorProps) {
+export default function TicketTypesEditor({ value, onChange }: TicketTypesEditorProps) {
   const totalQuantity = value.reduce((sum, tt) => sum + (Number(tt.quantity) || 0), 0);
-  const overCapacity = capacity > 0 && totalQuantity > capacity;
 
   function update(index: number, patch: Partial<TicketTypeDraft>) {
     onChange(value.map((tt, i) => (i === index ? { ...tt, ...patch } : tt)));
@@ -84,9 +82,9 @@ export default function TicketTypesEditor({ value, onChange, capacity }: TicketT
         </div>
       ))}
 
-      <p className={`text-xs ${overCapacity ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
-        Total tickets: {totalQuantity} / Capacity: {capacity || 0}
-        {overCapacity && " — exceeds event capacity"}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Total capacity: {totalQuantity} (the event&apos;s capacity is the total of all ticket
+        quantities)
       </p>
     </div>
   );

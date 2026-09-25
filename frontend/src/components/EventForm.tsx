@@ -23,7 +23,6 @@ const EMPTY_VALUES: EventFormValues = {
   longitude: "",
   startDateTime: "",
   endDateTime: "",
-  capacity: 0,
   description: "",
   ticketTypes: [{ name: "General Admission", price: 0, quantity: 0 }],
 };
@@ -56,7 +55,6 @@ export default function EventForm({
   const [longitude, setLongitude] = useState(initialValues.longitude);
   const [startDateTime, setStartDateTime] = useState(initialValues.startDateTime);
   const [endDateTime, setEndDateTime] = useState(initialValues.endDateTime);
-  const [capacity, setCapacity] = useState(initialValues.capacity);
   const [description, setDescription] = useState(initialValues.description);
   const [ticketTypes, setTicketTypes] = useState<TicketTypeDraft[]>(initialValues.ticketTypes);
   const [error, setError] = useState("");
@@ -94,10 +92,6 @@ export default function EventForm({
       setError("Please add at least one category.");
       return;
     }
-    if (capacity <= 0) {
-      setError("Capacity must be greater than zero.");
-      return;
-    }
     const cleanTicketTypes = ticketTypes.filter((tt) => tt.name.trim() !== "");
     if (cleanTicketTypes.length === 0) {
       setError("Please add at least one ticket type.");
@@ -105,11 +99,6 @@ export default function EventForm({
     }
     if (cleanTicketTypes.some((tt) => !Number.isInteger(tt.quantity) || tt.quantity < 1 || tt.price < 0)) {
       setError("Every ticket type needs a whole quantity of at least 1 and a price of 0 or more.");
-      return;
-    }
-    const totalQuantity = cleanTicketTypes.reduce((sum, tt) => sum + tt.quantity, 0);
-    if (totalQuantity > capacity) {
-      setError("The total quantity of all ticket types cannot exceed the event capacity.");
       return;
     }
     if ((latitude === "") !== (longitude === "")) {
@@ -131,7 +120,6 @@ export default function EventForm({
         longitude,
         startDateTime,
         endDateTime,
-        capacity,
         description,
         ticketTypes: cleanTicketTypes,
       });
@@ -201,16 +189,7 @@ export default function EventForm({
         />
       </div>
 
-      <FormField
-        id="capacity"
-        label="Total capacity"
-        type="number"
-        value={String(capacity)}
-        onChange={(v) => setCapacity(Number(v))}
-        placeholder="350"
-      />
-
-      <TicketTypesEditor value={ticketTypes} onChange={setTicketTypes} capacity={capacity} />
+      <TicketTypesEditor value={ticketTypes} onChange={setTicketTypes} />
 
       <TextareaField
         id="description"

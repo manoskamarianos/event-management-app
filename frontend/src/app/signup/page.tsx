@@ -32,6 +32,8 @@ export default function SignupPage() {
     city: "",
     country: "",
     postcode: "",
+    latitude: "",
+    longitude: "",
     taxNumber: "",
     requested_role: "participant" as RequestedRole,
   });
@@ -41,6 +43,24 @@ export default function SignupPage() {
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function fillFromBrowserLocation() {
+    if (!navigator.geolocation) {
+      setFormError("Your browser cannot share its location. Enter the coordinates by hand.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setForm((current) => ({
+          ...current,
+          latitude: coords.latitude.toFixed(6),
+          longitude: coords.longitude.toFixed(6),
+        }));
+        setFormError("");
+      },
+      () => setFormError("Could not get your location. Enter the coordinates by hand instead."),
+    );
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -57,6 +77,17 @@ export default function SignupPage() {
       return;
     }
 
+    const hasLatitude = form.latitude.trim() !== "";
+    const hasLongitude = form.longitude.trim() !== "";
+    if (hasLatitude !== hasLongitude) {
+      setErrors({ latitude: "Enter both latitude and longitude, or leave both empty." });
+      return;
+    }
+    if (hasLatitude && (Number.isNaN(Number(form.latitude)) || Number.isNaN(Number(form.longitude)))) {
+      setErrors({ latitude: "Latitude and longitude must be numbers." });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.auth.register({
@@ -70,6 +101,8 @@ export default function SignupPage() {
         address: [form.address, form.city, form.country].map((part) => part.trim()).join(", "),
         taxNumber: form.taxNumber.trim(),
         postcode: Number(form.postcode),
+        latitude: hasLatitude ? Number(Number(form.latitude).toFixed(6)) : null,
+        longitude: hasLongitude ? Number(Number(form.longitude).toFixed(6)) : null,
         requested_role: form.requested_role,
       });
       router.push("/signup/pending");
@@ -204,6 +237,33 @@ export default function SignupPage() {
               error={errors.postcode}
               required
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                id="latitude"
+                label="Latitude (optional)"
+                placeholder="37.9838"
+                value={form.latitude}
+                onChange={(v) => update("latitude", v)}
+                error={errors.latitude}
+              />
+              <FormField
+                id="longitude"
+                label="Longitude (optional)"
+                placeholder="23.7275"
+                value={form.longitude}
+                onChange={(v) => update("longitude", v)}
+                error={errors.longitude}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={fillFromBrowserLocation}
+              className="self-start text-sm font-medium text-zinc-950 hover:underline dark:text-zinc-50"
+            >
+              Use my current location
+            </button>
           </div>
           <FormField
             id="taxNumber"

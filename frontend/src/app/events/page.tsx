@@ -77,7 +77,9 @@ function SearchEvents() {
           Browse events
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {filtered.length} event{filtered.length === 1 ? "" : "s"} found
+          {loading
+            ? "Loading events…"
+            : `${filtered.length} event${filtered.length === 1 ? "" : "s"} found`}
         </p>
 
         {error && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
