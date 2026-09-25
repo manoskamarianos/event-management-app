@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from users.models import User
 from django.db import transaction
-from .models import Booking, Event, Event_type, Category, Ticket_type, Media
+from .models import Booking, Event, Event_type, Category, Ticket_type, Media,EventRating
 import html
 
 ##General Serializers
@@ -41,6 +41,7 @@ class EventReadSerializer(serializers.ModelSerializer):
 
 class EventCreateSerializer(serializers.ModelSerializer):
     categories= serializers.ListField(child= serializers.CharField(),required=True,allow_empty=False)
+    medias= serializers.ListField(child= serializers.ImageField(max_length= 255, allow_empty_file=False, use_url=False),write_only=True,required=False)
     event_type = serializers.CharField(write_only=True, required=True, allow_blank=False)
     ticket_types= TicketTypeSerializer(many=True,required=True,allow_empty=False)
     ##Autocompleted fields
@@ -66,8 +67,11 @@ class EventCreateSerializer(serializers.ModelSerializer):
         event_type= validated_data.pop("event_type")
         categories= validated_data.pop("categories")
         ticket_types= validated_data.pop("ticket_types")
+        medias= validated_data.pop("medias",None)
         
-        event_t, _ = Event_type.objects.get_or_create(name=str(event_type).strip().upper())
+        validated_data["current_status"]= "draft"
+        validated_data["status"]= "draft"
+        event_t, created = Event_type.objects.get_or_create(name=str(event_type).strip().upper())
         
         capacity = 0
         for tick in ticket_types:
@@ -80,6 +84,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
             cats.append(category)
         event.categories.set(cats)
         
+        if medias is not None:
+            for med in medias:
+                Media.objects.create(event=event, photo=med)
+            
         for tick in ticket_types:
             Ticket_type.objects.create(event=event,available= tick["quantity"],**tick)
         
@@ -90,6 +98,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
         event_type= validated_data.pop("event_type",None)
         categories= validated_data.pop("categories",None)
         ticket_types= validated_data.pop("ticket_types",None)
+        medias= validated_data.pop("medias",None)
         
         if event_type is not None:
             event_t, _ = Event_type.objects.get_or_create(name=str(event_type).strip().upper())
@@ -107,6 +116,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
                 category,_= Category.objects.get_or_create(name= str(cat).strip().upper())
                 cats.append(category)
             instance.categories.set(cats)
+        if medias is not None:
+            instance.media.all().delete()
+            for med in medias:
+                Media.objects.create(event= instance, photo= med)
         
         for attr,value in validated_data.items():
             setattr(instance, attr, value)
@@ -142,7 +155,7 @@ class BookingSerializer(serializers.ModelSerializer):
         attrs["event_title"]= ticket_type.event.title
         attrs["total_cost"]= ticket_type.price*num_ticket
         attrs["status"]= "pending"
-        attrs['attendee']= self.context['request'].user
+        attrs["attendee"]= self.context["request"].user
         return attrs
     
 class BookingModifySerializer(serializers.ModelSerializer):

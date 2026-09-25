@@ -26,6 +26,8 @@ SECRET_KEY = 'django-insecure-hi3w++l2%@yvkgzr(-bx2(atqz4o-z5kh-+7u=#n19=1#4pc)0
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:4200",
@@ -41,14 +43,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     ## Extra libs(for REST)
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
     ## Mine
     "users",
     "events",
     "MyMessages"
+
 ]
 
 ##Custom JWT tokens settings
