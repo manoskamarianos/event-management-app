@@ -3,6 +3,7 @@ from users.models import User
 from django.db import transaction
 from .models import Booking, Event, Event_type, Category, Ticket_type, Media,EventRating
 import html
+import json
 
 ##General Serializers
 class CategorySerializer(serializers.ModelSerializer):
@@ -34,6 +35,7 @@ class EventReadSerializer(serializers.ModelSerializer):
     ticket_types= TicketTypeSerializer(many=True, read_only=True)
     media= MediaSerializer(many=True, read_only=True)
     organizer= serializers.ReadOnlyField(source="organizer.username")
+    organizer_id= serializers.ReadOnlyField(source="organizer.id")
     status= serializers.ReadOnlyField(source="current_status")
     booked_tic_num= serializers.SerializerMethodField()
     class Meta:
@@ -59,6 +61,28 @@ class EventCreateSerializer(serializers.ModelSerializer):
     def to_representation(self,instance):
         return EventReadSerializer(instance,context=self.context).data
     
+    def to_internal_value(self,data):
+        ##Check if it is json or multipart/from-data
+        if hasattr(data,"getlist"):
+            str_data= data.copy()
+            
+            cats= data.get("categories")
+            if isinstance(cats,str):
+                try:
+                    str_data["categories"]= json.loads(cats)
+                except json.JSONDecodeError:
+                    pass
+            
+            ticks= data.get("ticket_types")
+            if isinstance(ticks,str):
+                try:
+                    str_data["ticket_types"]= json.loads(ticks)
+                except json.JSONDecodeError:
+                    pass
+            return super().to_internal_value(str_data)
+        return super().to_internal_value(data)
+            
+
     def validate(self, attrs):
         start = attrs.get("start_date_time")
         end = attrs.get("end_date_time")
@@ -135,6 +159,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 class BookingSerializer(serializers.ModelSerializer):
     event= serializers.ReadOnlyField(source="event.title" )
     attendee= serializers.ReadOnlyField(source= "attendee.username")
+    attendee_id= serializers.ReadOnlyField(source= "attendee.id")
     ticket_type= serializers.PrimaryKeyRelatedField(queryset= Ticket_type.objects.all(),required= True)
     
     class Meta:
