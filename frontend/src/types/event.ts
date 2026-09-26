@@ -40,8 +40,9 @@ export interface EventItem {
   endDateTime: string;
   capacity: number;
   ticketTypes: TicketType[];
-  /** Only populated for the event's organizer and for admins. */
+  /** Filled in separately (organizer bookings page, admin export); the event list has none. */
   bookings: Booking[];
+  /** Null when the API does not name the organizer's account. */
   organizerUserId: number | null;
   organizerUsername: string;
   status: EventStatus;

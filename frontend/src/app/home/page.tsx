@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/api";
 import { useAuth } from "@/context/AuthContext";
@@ -34,8 +34,13 @@ async function fetchRecommendations() {
 
 function Home() {
   const { currentUser } = useAuth();
-  const { events } = useEvents();
-  const { bookings } = useMyBookings();
+  const { events, refresh } = useEvents();
+  const { bookings, loading: bookingsLoading } = useMyBookings();
+
+  // Recommendations and "My bookings" links need the event list (a one-off, cached download).
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
   // Rendered only once the session is known (see RequireRole), so reading storage here is safe.
   const [visited] = useState(() => (currentUser ? new Set(readVisited(currentUser.id)) : new Set<string>()));
 
@@ -47,18 +52,26 @@ function Home() {
   const isOrganizer = currentUser?.role === "organizer";
   const isParticipant = currentUser?.role === "participant";
 
+  // Recommendations are based on what the user booked or looked at. With no history there is
+  // nothing to recommend from, and asking the server anyway is not free: for a user it does
+  // not know yet it starts retraining the model, which slows the whole backend down.
+  const hasHistory = bookings.length > 0 || visited.size > 0;
+
   // Only participants are part of the trained model. The server does not filter its answer, so
   // drop events that cannot be booked or were already booked.
   const { data: modelRecommendations } = useScopedData(
-    isParticipant && currentUser ? currentUser.id : null,
+    isParticipant && currentUser && !bookingsLoading && hasHistory ? currentUser.id : null,
     fetchRecommendations,
   );
   const fromModel = (modelRecommendations ?? [])
     .filter((event) => event.status === "PUBLISHED" && !bookedEventIds.has(event.eventId))
     .slice(0, 3);
   // Without model output (new users, guests) fall back to the events they booked or visited.
-  const recommended =
-    fromModel.length > 0 ? fromModel : recommendEventsFor(events, bookedEventIds, visited);
+  const recommended = !hasHistory
+    ? []
+    : fromModel.length > 0
+      ? fromModel
+      : recommendEventsFor(events, bookedEventIds, visited);
 
   return (
     <div className="flex flex-1 flex-col px-4 py-12 sm:px-8">

@@ -36,8 +36,11 @@ export function fieldErrors(error: unknown): Record<string, string> {
   if (!(error instanceof ApiError) || !error.data || typeof error.data !== "object") return {};
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(error.data as Record<string, unknown>)) {
-    const first = Array.isArray(value) ? value[0] : value;
-    if (typeof first === "string") result[key] = first.trim();
+    // A field can fail several rules at once (e.g. a password): show all of them.
+    const messages = (Array.isArray(value) ? value : [value]).filter(
+      (item): item is string => typeof item === "string",
+    );
+    if (messages.length > 0) result[key] = messages.map((message) => message.trim()).join(" ");
   }
   return result;
 }

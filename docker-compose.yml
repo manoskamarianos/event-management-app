@@ -8,10 +8,12 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
-      # Database to start from on the first run. Other options: dbs/big_db.sqlite3
-      # (5000 users) or dbs/empty.sqlite3 (empty; only the admin above exists).
+      # Database the app starts from on the FIRST run (afterwards the volume is used):
+      #   db.sqlite3        (default) about 5,000 users, 1,000 events, 24,750 bookings
+      #   dbs/db.sqlite3    about 100 users, 30 events, 180 bookings (small and quick)
+      #   dbs/empty.sqlite3 nothing but the administrator
+      # The administrator (admin / adminpassword123) comes from the backend's
+      # users/migrations/0003_admin.py, so it exists whichever one is used.
       SEED_DB: ${SEED_DB:-db.sqlite3}
     volumes:
       - backend-data:/data

@@ -2,6 +2,7 @@
 
 import { http } from "./httpClient";
 import type {
+  BookingDto,
   EventDto,
   EventInput,
   EventUpdateInput,
@@ -33,6 +34,37 @@ export async function listEvents(): Promise<EventDto[]> {
   }
 }
 
+export interface EventSearch {
+  /** Free text; every word must match the title, description, venue, address, city or country. */
+  search?: string;
+  /** Category names, comma separated (the API stores them upper-cased). */
+  category?: string;
+  priceMin?: number;
+  priceMax?: number;
+  /** ISO date-times: events starting at or after `startDate` and ending at or before `endDate`. */
+  startDate?: string;
+  endDate?: string;
+  page: number;
+  size: number;
+}
+
+/** One page of events matching the filters. Filtering and paging are done by the API. */
+export function searchEvents(params: EventSearch) {
+  const query = new URLSearchParams({ page: String(params.page), size: String(params.size) });
+  const optional: Record<string, string | number | undefined> = {
+    search: params.search?.trim(),
+    category: params.category?.trim(),
+    price_min: params.priceMin,
+    price_max: params.priceMax,
+    start_date: params.startDate,
+    end_date: params.endDate,
+  };
+  for (const [key, value] of Object.entries(optional)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  return http.get<Paginated<EventDto>>(`/events/?${query.toString()}`);
+}
+
 /**
  * Recommendations from the matrix-factorization model. Participants only. Resolves to an empty
  * list when the model has nothing for this user, so callers can fall back to something else.
@@ -46,13 +78,18 @@ export function getEvent(eventId: number) {
   return http.get<EventDto>(`/events/${eventId}/`);
 }
 
-/** Organizer only. */
-export function createEvent(payload: EventInput) {
+/** Bookings of one event. Organizer (own events) and admin only. */
+export function listEventBookings(eventId: number) {
+  return http.get<BookingDto[]>(`/events/MyEvents/${eventId}/bookings/`);
+}
+
+/** Organizer only. Send FormData (see toEventFormData) to attach photos. */
+export function createEvent(payload: EventInput | FormData) {
   return http.post<EventDto>("/events/create/", payload);
 }
 
 /** Organizer (own events) only; rejected once the event has bookings or is cancelled/completed. */
-export function updateEvent(eventId: number, payload: EventUpdateInput) {
+export function updateEvent(eventId: number, payload: EventUpdateInput | FormData) {
   return http.patch<EventDto>(`/events/MyEvents/${eventId}/`, payload);
 }
 

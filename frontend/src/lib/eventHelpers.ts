@@ -36,6 +36,14 @@ export function isBookable(event: EventItem) {
   return event.status === "PUBLISHED" && totalAvailable(event) > 0;
 }
 
+/** Whether `user` organizes `event`: by id when the API gave one, otherwise by username. */
+export function isOrganizerOf(event: EventItem, user: { id: number; username: string } | null) {
+  if (!user) return false;
+  return event.organizerUserId !== null
+    ? event.organizerUserId === user.id
+    : event.organizerUsername === user.username;
+}
+
 /**
  * Spec 7γ: an event can be deleted only before publication or, at the latest, before its first
  * booking. The API applies the same rule to edits, so both share this check.

@@ -166,6 +166,21 @@ function EventDetails({ eventId }: { eventId: string }) {
           ))}
         </div>
 
+        {current.media.length > 0 && (
+          <div className="mt-6 flex gap-3 overflow-x-auto">
+            {current.media.map((photo) => (
+              // Photos are served by the API host, so next/image would need it whitelisted.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={photo}
+                src={photo}
+                alt={`${current.title} photo`}
+                className="h-48 rounded-lg border border-black/[.08] object-cover dark:border-white/[.145]"
+              />
+            ))}
+          </div>
+        )}
+
         <dl className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-black/[.08] bg-white p-5 text-sm dark:border-white/[.145] dark:bg-zinc-900 sm:grid-cols-2">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
