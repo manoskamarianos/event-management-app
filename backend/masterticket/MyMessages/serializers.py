@@ -42,9 +42,9 @@ class MessageListSerializer(serializers.ModelSerializer):
             "event","event_title","subject","read","created_at"]
 
 class MessageOpenSerializer(serializers.ModelSerializer):
-    sender = serializers.CharField(source="sender.username",read_only=True)
-    receiver = serializers.CharField(source="receiver.username",read_only=True)
-    event = serializers.CharField(source="event.title",read_only=True)
+    sender_name = serializers.CharField(source="sender.username",read_only=True)
+    receiver_name = serializers.CharField(source="receiver.username",read_only=True)
+    event_title = serializers.CharField(source="event.title",read_only=True)
 
     class Meta:
         model = Message
