@@ -67,6 +67,10 @@ class CreateEvent(generics.CreateAPIView):
     serializer_class= EventCreateSerializer
     def perform_create(self, serializer):
         serializer.save(organizer=self.request.user)
+        if not Recommend.IS_TRAINING:
+            Recommend.IS_TRAINING = True
+            threading.Thread(target=Recommend.full_training).start()
+
 
 class RetrieveEvent(generics.RetrieveAPIView):
     permission_classes= [IsAuthenticated]
@@ -264,12 +268,50 @@ class Recommend(generics.ListAPIView):
         return Recommend.Rec_vectors
 
     @staticmethod
-    def training():
+    def full_training():
         try:
             call_command("Full_Matrix_Factorization")
         finally:
             Recommend.IS_TRAINING = False
     
+    @staticmethod
+    def user_fold_in(uid):
+        ratings= EventRating.objects.filter(user_id=uid).values("event_id","rating")
+        if not ratings:
+            return False
+
+        users_map= Recommend.Rec_vectors["users_map"]
+        events_map= Recommend.Rec_vectors["events_map"]
+        V= Recommend.Rec_vectors["V"]
+        F= Recommend.Rec_vectors["F"]
+        b= Recommend.Rec_vectors["b"]
+        c= Recommend.Rec_vectors["c"]
+        m= Recommend.Rec_vectors["m"]
+        
+        rated_mapped_events = []
+        for rat in ratings:
+            if rat["event_id"] in events_map:
+                rated_mapped_events.append((events_map[rat["event_id"]], rat["rating"]))
+        if not rated_mapped_events:
+            return False
+        V_u= np.mean([F[i] for i, _ in rated_mapped_events],axis=0)
+        b_u= 0.0
+        myeta= 0.02
+        mylamda= 0.1
+        for j in range(50):
+            for i, rat in rated_mapped_events:
+                x= m + b_u + c[i] + np.dot(V_u,F[i])
+                e= rat - x 
+                b_u+= myeta*(e-mylamda*b_u)
+                V_u = myeta*(e*F[i] - mylamda*V_u) + V_u
+        users_map[uid]= len(users_map)
+        Recommend.Rec_vectors["V"]= np.vstack([V, V_u])
+        Recommend.Rec_vectors["b"]= np.append(b, b_u)
+        Recommend.Rec_vectors["users_map"]= users_map
+        return True
+
+        
+        
     def get(self,request, *args, **kwargs):
         
         uid= request.user.id 
@@ -280,23 +322,32 @@ class Recommend(generics.ListAPIView):
         except FileNotFoundError:
             if not Recommend.IS_TRAINING:
                 Recommend.IS_TRAINING = True
-                threading.Thread(target=Recommend.training).start()
+                threading.Thread(target=Recommend.full_training).start()
             return Response([], status=status.HTTP_200_OK)
 
         users_map= Rec_vectors["users_map"]
         events_map= Rec_vectors["events_map"]
+
+        Recommendation= []
+        
+        if uid not in users_map: 
+            if not Recommend.user_fold_in(uid):
+                if not Recommend.IS_TRAINING:
+                    Recommend.IS_TRAINING = True
+                    threading.Thread(target=Recommend.full_training).start()        
+                return Response([], status=status.HTTP_200_OK)
+            else:
+                users_map= Rec_vectors["users_map"]
+            if not Recommend.IS_TRAINING:
+                Recommend.IS_TRAINING = True
+                threading.Thread(target=Recommend.full_training).start()
+        
         V= Rec_vectors["V"]
         F= Rec_vectors["F"]
         b= Rec_vectors["b"]
         c= Rec_vectors["c"]
         m= Rec_vectors["m"]
-        
-        if uid not in users_map:##might add fold in later for now retain the whole database 
-            if not Recommend.IS_TRAINING:
-                Recommend.IS_TRAINING = True
-                threading.Thread(target=Recommend.training).start()
-            return Response([], status=status.HTTP_200_OK)
-        
+
         Prediction_vector= m+b[users_map[uid]]+c+np.dot(F,V[users_map[uid]])
         top_events= np.argsort(Prediction_vector)[::-1][:20]
         
@@ -313,7 +364,7 @@ class Recommend(generics.ListAPIView):
         dict_event= {}
         for event in database_events:
             dict_event[event.id]= event
-        Recommendation= []
+        
         for id in rec_event_ids:
             if id in dict_event:
                 Recommendation.append(dict_event[id])

@@ -46,9 +46,9 @@ class Command(BaseCommand):
         
         for j in range(epochs):
             t_e= 0.0
-            for u,i,rating in dataset:
+            for u,i,rat in dataset:
                 x= m + b[u] + c[i] + np.dot(V[u],F[i])
-                e= rating - x 
+                e= rat - x 
                 t_e+= e**2
                 b[u]+= myeta*(e-mylamda*b[u])
                 c[i]+= myeta*(e-mylamda*c[i])
