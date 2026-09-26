@@ -105,8 +105,12 @@ class ApproveUser(generics.GenericAPIView):
             if user.requested_role == "admin":
                 askedforadmin = "The user asked for admin. Fallback to Guest."
                 user.role = "guest" 
+            elif not user.requested_role:
+                return Response({"error":f"User {user.username} with id {user.id} has no requested role or has been rejected"},status= status.HTTP_400_BAD_REQUEST )
             else:
-                user.role = user.requested_role    
+                user.role = user.requested_role  
+        else:
+            user.role= "guest"  
         user.requested_role = None 
         user.approved = approve
         user.save()

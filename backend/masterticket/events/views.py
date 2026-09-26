@@ -86,7 +86,7 @@ class RetrieveEvent(generics.RetrieveAPIView):
         return event
 
 class ManageEvent(generics.GenericAPIView):
-    permission_classes= [IsOrganizer]
+    permission_classes= [IsOrganizer,IsAdmin]
     
     def get_queryset(self):
         if self.request.user.role == "admin":
@@ -109,13 +109,13 @@ class ManageEvent(generics.GenericAPIView):
         if event.bookings.exists():
             if self.request.method=="DELETE":
                 return Response({"error": "Event cannot be deleted"},status=status.HTTP_400_BAD_REQUEST)
-            if self.request.data.get("current_status") != "cancelled":
+            if self.request.data.get("status") != "cancelled":
                 return Response({"error": "Event cannot be modified"},status=status.HTTP_400_BAD_REQUEST)
         
         return None
     
     def broadcast_cancel(self,event):
-        attendees= User.objects.filter(booking__event= event).distinct()
+        attendees= User.objects.filter(bookings__event= event).distinct()
         
         cancel_messages=[]
         for attendee in attendees:
@@ -139,7 +139,7 @@ class ManageEvent(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         
-        if serializer.validated_data.get("current_status")== "cancelled":
+        if serializer.validated_data.get("status")== "cancelled":
             self.broadcast_cancel(event)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -165,6 +165,21 @@ class ListBooking(generics.ListAPIView):
 class CreateBooking(generics.CreateAPIView):
     permission_classes= [IsParticipant]
     serializer_class= BookingSerializer
+    
+class ListBookingsOfEvent(generics.ListAPIView):
+    permission_classes= [IsAdmin,IsOrganizer]
+    serializer_class= BookingSerializer
+    
+    def get_queryset(self):
+        eid= self.kwargs.get("pk")
+        user= self.request.user
+        
+        if user.role== "admin":
+            return Booking.objects.filter(event_id= eid).order_by("-created_at")
+        if user.role== "organizer":
+            return Booking.objects.filter(event_id= eid, event__organizer= user).order_by("-created_at")
+        
+        return Booking.objects.none()
     
 ###should check    
 class ModifyBooking(generics.GenericAPIView):
@@ -291,5 +306,4 @@ class Recommend(generics.ListAPIView):
         serializer=  self.get_serializer(Recommendation, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-        
             

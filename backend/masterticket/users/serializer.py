@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import User
 import html
 
@@ -33,6 +35,12 @@ class UserSerializer(serializers.ModelSerializer):
                         "longitude": {"write_only": True},
                         "latitude": {"write_only": True},
                         }
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as err:
+            raise serializers.ValidationError(list(err.messages))
+        return value
     
     def validate(self, attrs):
         if attrs.get("password") != attrs.get("password_confirm"):
@@ -50,7 +58,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id","username","postcode","requested_role","approved","first_name","last_name","email","telephone","address","taxNumber","longitude","latitude"]
+        fields = ["id","username","postcode","requested_role","role","approved","first_name","last_name","email","telephone","address","taxNumber","longitude","latitude"]
         extra_kwargs = {"approved":{"read_only": True},
                         "role":{"read_only": True},
                         "requested_role":{"read_only": True},

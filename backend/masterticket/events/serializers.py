@@ -29,15 +29,19 @@ class MediaSerializer(serializers.ModelSerializer):
 
 ## Event Serializers         
 class EventReadSerializer(serializers.ModelSerializer):
-    event_type = EventTypeSerializer(read_only=True)
-    categories = CategorySerializer(many=True, read_only=True)
-    ticket_types = TicketTypeSerializer(many=True, read_only=True)
-    media = MediaSerializer(many=True, read_only=True)
-    organizer = serializers.ReadOnlyField(source="organizer.username")
-    status = serializers.ReadOnlyField(source="current_status")
+    event_type= EventTypeSerializer(read_only=True)
+    categories= CategorySerializer(many=True, read_only=True)
+    ticket_types= TicketTypeSerializer(many=True, read_only=True)
+    media= MediaSerializer(many=True, read_only=True)
+    organizer= serializers.ReadOnlyField(source="organizer.username")
+    status= serializers.ReadOnlyField(source="current_status")
+    booked_tic_num= serializers.SerializerMethodField()
     class Meta:
         model = Event
         fields = "__all__"
+    
+    def get_booked_tic_num(self, obj):
+        return sum((tic.quantity - tic.available) for tic in obj.ticket_types.all())
 
 class EventCreateSerializer(serializers.ModelSerializer):
     categories= serializers.ListField(child= serializers.CharField(),required=True,allow_empty=False)
@@ -69,7 +73,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
         ticket_types= validated_data.pop("ticket_types")
         medias= validated_data.pop("medias",None)
         
-        validated_data["current_status"]= "draft"
+        
         validated_data["status"]= "draft"
         event_t, created = Event_type.objects.get_or_create(name=str(event_type).strip().upper())
         

@@ -60,9 +60,10 @@ class MessageDeleteSerializer(serializers.Serializer):
     message_ids = serializers.ListField(child=serializers.IntegerField(),required=True,allow_empty= False)
     
     def validate(self, attrs):
-        ids = [id for id in attrs if id is not None]
+        ids = [id for id in attrs.get("message_ids",[]) if id is not None]
         if not ids:
             raise serializers.ValidationError("No valid message ids")
+        attrs["message_ids"]= ids
         return super().validate(attrs)
     
     def save(self):
