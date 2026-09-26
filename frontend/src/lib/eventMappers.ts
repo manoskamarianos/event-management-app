@@ -1,7 +1,7 @@
 import type { BookingDto, EventDto, EventInput, EventStatus as ApiEventStatus, TicketTypeInput } from "@/api";
 import type { Booking, BookingStatus, EventItem, EventStatus, MyBooking } from "@/types/event";
 
-function toBooking(dto: BookingDto): Booking {
+export function toBooking(dto: BookingDto): Booking {
   return {
     bookingId: String(dto.id),
     attendeeUserId: dto.attendee_id,
@@ -38,8 +38,8 @@ export function toEventItem(dto: EventDto): EventItem {
       quantity: tt.quantity,
       available: tt.available,
     })),
-    bookings: (dto.bookings ?? []).map(toBooking),
-    organizerUserId: dto.organizer_id,
+    bookings: [],
+    organizerUserId: dto.organizer_id ?? null,
     organizerUsername: dto.organizer ?? "",
     status: dto.status.toUpperCase() as EventStatus,
     description: dto.description,
@@ -78,6 +78,8 @@ export interface EventFormValues {
   endDateTime: string;
   description: string;
   ticketTypes: TicketTypeInput[];
+  /** New photos to upload. On an edit they replace the event's existing ones. */
+  photos: File[];
 }
 
 function toCoordinate(value: string): number | null {
@@ -113,4 +115,35 @@ export function toDateTimeLocal(iso: string): string {
   const date = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Multipart body, used only when photos are attached. The API reads the nested ticket types
+ * from `ticket_types[0]name`-style keys and the categories from repeated keys (a JSON string
+ * for either is rejected), and the files from repeated `medias` keys.
+ */
+export function toEventFormData(input: EventInput, photos: File[]): FormData {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || value === null) continue;
+    if (key === "categories") {
+      (value as string[]).forEach((category) => form.append("categories", category));
+    } else if (key === "ticket_types") {
+      (value as TicketTypeInput[]).forEach((ticketType, index) => {
+        form.append(`ticket_types[${index}]name`, ticketType.name);
+        form.append(`ticket_types[${index}]price`, String(ticketType.price));
+        form.append(`ticket_types[${index}]quantity`, String(ticketType.quantity));
+      });
+    } else {
+      form.append(key, String(value));
+    }
+  }
+  photos.forEach((photo) => form.append("medias", photo));
+  return form;
+}
+
+/** JSON when there is nothing to upload, multipart otherwise. */
+export function toEventPayload(values: EventFormValues, status?: ApiEventStatus): EventInput | FormData {
+  const input = toEventInput(values, status);
+  return values.photos.length > 0 ? toEventFormData(input, values.photos) : input;
 }

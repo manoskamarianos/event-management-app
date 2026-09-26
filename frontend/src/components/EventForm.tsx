@@ -25,14 +25,19 @@ const EMPTY_VALUES: EventFormValues = {
   endDateTime: "",
   description: "",
   ticketTypes: [{ name: "General Admission", price: 0, quantity: 0 }],
+  photos: [],
 };
 
 function label(value: string) {
   return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
+const MAX_PHOTOS = 10;
+
 interface EventFormProps {
   initialValues?: EventFormValues;
+  /** Photos the event already has (edit); picking new ones replaces them. */
+  existingPhotos?: string[];
   submitLabel: string;
   submittingLabel: string;
   onSubmit: (values: EventFormValues) => Promise<void>;
@@ -40,6 +45,7 @@ interface EventFormProps {
 
 export default function EventForm({
   initialValues = EMPTY_VALUES,
+  existingPhotos = [],
   submitLabel,
   submittingLabel,
   onSubmit,
@@ -57,6 +63,7 @@ export default function EventForm({
   const [endDateTime, setEndDateTime] = useState(initialValues.endDateTime);
   const [description, setDescription] = useState(initialValues.description);
   const [ticketTypes, setTicketTypes] = useState<TicketTypeDraft[]>(initialValues.ticketTypes);
+  const [photos, setPhotos] = useState<File[]>(initialValues.photos);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -122,6 +129,7 @@ export default function EventForm({
         endDateTime,
         description,
         ticketTypes: cleanTicketTypes,
+        photos,
       });
     } catch (submitError) {
       setError(describeError(submitError));
@@ -190,6 +198,34 @@ export default function EventForm({
       </div>
 
       <TicketTypesEditor value={ticketTypes} onChange={setTicketTypes} />
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="photos" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Photos (optional)
+        </label>
+        {existingPhotos.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto">
+            {existingPhotos.map((photo) => (
+              // Served by the API host, so next/image would need it whitelisted.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={photo} src={photo} alt="" className="h-16 rounded-md border border-black/[.08] object-cover dark:border-white/[.145]" />
+            ))}
+          </div>
+        )}
+        <input
+          id="photos"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, MAX_PHOTOS))}
+          className="text-sm text-zinc-600 file:mr-3 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-950 dark:text-zinc-400 dark:file:bg-zinc-800 dark:file:text-zinc-50"
+        />
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {photos.length > 0
+            ? `${photos.length} photo${photos.length === 1 ? "" : "s"} selected${existingPhotos.length > 0 ? " — they replace the current ones" : ""}.`
+            : `Up to ${MAX_PHOTOS} images.${existingPhotos.length > 0 ? " Leave empty to keep the current photos." : ""}`}
+        </p>
+      </div>
 
       <TextareaField
         id="description"

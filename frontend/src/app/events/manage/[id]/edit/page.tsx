@@ -9,7 +9,7 @@ import EventForm from "@/components/EventForm";
 import PageNotice from "@/components/PageNotice";
 import RequireRole from "@/components/RequireRole";
 import { toDateTimeLocal } from "@/lib/eventMappers";
-import { canModifyEvent } from "@/lib/eventHelpers";
+import { canModifyEvent, isOrganizerOf } from "@/lib/eventHelpers";
 
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -46,7 +46,7 @@ function EditEvent({ eventId }: { eventId: string }) {
     );
   }
 
-  if (event.organizerUserId !== currentUser?.id) {
+  if (!isOrganizerOf(event, currentUser)) {
     return (
       <PageNotice href="/events/manage" linkLabel="Back to manage events">
         You can only edit events you organize.
@@ -75,6 +75,7 @@ function EditEvent({ eventId }: { eventId: string }) {
 
         <EventForm
           key={event.eventId}
+          existingPhotos={event.media}
           initialValues={{
             title: event.title,
             categories: event.categories,
@@ -93,6 +94,7 @@ function EditEvent({ eventId }: { eventId: string }) {
               price: tt.price,
               quantity: tt.quantity,
             })),
+            photos: [],
           }}
           submitLabel="Save changes"
           submittingLabel="Saving…"

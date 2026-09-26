@@ -1,10 +1,13 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { api, describeError } from "@/api";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventsContext";
-import { formatDateTime } from "@/lib/eventHelpers";
+import { useScopedData } from "@/hooks/useScopedData";
+import { formatDateTime, isOrganizerOf, totalAvailable, totalBooked } from "@/lib/eventHelpers";
+import { toBooking } from "@/lib/eventMappers";
 import PageNotice from "@/components/PageNotice";
 import RequireRole from "@/components/RequireRole";
 import StatusBadge from "@/components/StatusBadge";
@@ -22,10 +25,22 @@ function EventBookings({ eventId }: { eventId: string }) {
   const { currentUser } = useAuth();
   const { events, loading, refresh } = useEvents();
   const event = events.find((item) => item.eventId === eventId);
+  const owned = event !== undefined && isOrganizerOf(event, currentUser);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const numericId = Number(eventId);
+  const fetchBookings = useCallback(
+    async () => (await api.events.listEventBookings(numericId)).map(toBooking),
+    [numericId],
+  );
+  // Only ask the API once the event is known to be the organizer's own.
+  const { data: bookings, error: bookingsError } = useScopedData(
+    owned && Number.isInteger(numericId) ? numericId : null,
+    fetchBookings,
+  );
 
   if (loading) {
     return (
@@ -43,13 +58,15 @@ function EventBookings({ eventId }: { eventId: string }) {
     );
   }
 
-  if (event.organizerUserId !== currentUser?.id) {
+  if (!owned) {
     return (
       <PageNotice href="/events/manage" linkLabel="Back to manage events">
         You can only view bookings for events you organize.
       </PageNotice>
     );
   }
+
+  const list = bookings ?? [];
 
   function ticketTypeName(ticketTypeId: string) {
     return event!.ticketTypes.find((tt) => tt.ticketTypeId === ticketTypeId)?.name ?? "—";
@@ -69,8 +86,18 @@ function EventBookings({ eventId }: { eventId: string }) {
           <StatusBadge status={event.status} />
         </div>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {event.bookings.length} booking{event.bookings.length === 1 ? "" : "s"}
+          {bookings === null
+            ? "Loading bookings…"
+            : `${list.length} booking${list.length === 1 ? "" : "s"}`}
+          {" · "}
+          {totalBooked(event)} of {event.capacity} seats reserved · {totalAvailable(event)} available
         </p>
+
+        {bookingsError ? (
+          <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+            {describeError(bookingsError, "Could not load the bookings.")}
+          </p>
+        ) : null}
 
         <div className="mt-6 overflow-x-auto rounded-xl border border-black/[.08] dark:border-white/[.145]">
           <table className="w-full min-w-[800px] text-left text-sm">
@@ -88,7 +115,7 @@ function EventBookings({ eventId }: { eventId: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[.08] dark:divide-white/[.145]">
-              {event.bookings.map((booking) => (
+              {list.map((booking) => (
                 <tr key={booking.bookingId} className="bg-white dark:bg-zinc-950">
                   <td className="px-4 py-3 font-medium text-zinc-950 dark:text-zinc-50">
                     {booking.attendeeUsername}
@@ -118,7 +145,7 @@ function EventBookings({ eventId }: { eventId: string }) {
                   </td>
                 </tr>
               ))}
-              {event.bookings.length === 0 && (
+              {bookings !== null && list.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No bookings yet.

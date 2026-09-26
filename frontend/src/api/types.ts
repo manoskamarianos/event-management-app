@@ -133,12 +133,13 @@ export interface EventDto {
   description: string;
   event_type: EventTypeDto;
   organizer: string | null;
-  organizer_id: number | null;
+  /** Absent when the organizer's account no longer exists. */
+  organizer_id?: number | null;
   categories: CategoryDto[];
   ticket_types: TicketTypeDto[];
   media: EventMediaDto[];
-  /** Only sent to the event's organizer and to admins. */
-  bookings?: BookingDto[];
+  /** Seats already reserved, summed over the ticket types. */
+  booked_tic_num?: number;
 }
 
 /** `capacity` is not sent: the API sets it to the total quantity of the ticket types. */
@@ -208,9 +209,13 @@ export interface MessageDetail {
   created_at: string;
   deleted_sender: boolean;
   deleted_receiver: boolean;
-  sender: string;
-  receiver: string;
-  event: string;
+  /** User and event ids; the readable names are the `*_name` / `event_title` fields. */
+  sender: number | null;
+  receiver: number | null;
+  event: number | null;
+  sender_name: string;
+  receiver_name: string;
+  event_title: string;
 }
 
 export interface SendMessagePayload {

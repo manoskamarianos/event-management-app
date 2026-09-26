@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, describeError } from "@/api";
+import { describeError } from "@/api";
 import { useAuth } from "@/context/AuthContext";
 import { useEvents } from "@/context/EventsContext";
-import { canModifyEvent, formatDate, totalAvailable, totalBooked } from "@/lib/eventHelpers";
+import { canModifyEvent, formatDate, isOrganizerOf, totalAvailable, totalBooked } from "@/lib/eventHelpers";
 import StatusBadge from "@/components/StatusBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RequireRole from "@/components/RequireRole";
@@ -34,7 +34,7 @@ function ManageEvents() {
     refresh();
   }, [refresh]);
 
-  const myEvents = events.filter((event) => event.organizerUserId === currentUser?.id);
+  const myEvents = events.filter((event) => isOrganizerOf(event, currentUser));
 
   async function handlePublish(event: EventItem) {
     setError("");
@@ -61,36 +61,8 @@ function ManageEvents() {
       return;
     }
 
-    // Spec 10: everyone holding a booking is told about the cancellation.
-    const attendeeIds = Array.from(
-      new Set(
-        target.bookings.filter((b) => b.status !== "CANCELLED").map((b) => b.attendeeUserId),
-      ),
-    );
-    const results = await Promise.allSettled(
-      attendeeIds.map((attendeeId) =>
-        api.messages.sendMessage({
-          receiver: attendeeId,
-          event: Number(target.eventId),
-          subject: `Event cancelled: ${target.title}`,
-          body: `We're sorry to inform you that "${target.title}" scheduled on ${formatDate(
-            target.startDateTime,
-          )} has been cancelled. Your booking remains on record for reference.`,
-        }),
-      ),
-    );
-    const failed = results.filter((result) => result.status === "rejected").length;
-    if (failed > 0) {
-      setError(
-        `The event was cancelled, but ${failed} of ${attendeeIds.length} attendee notification(s) could not be sent.`,
-      );
-    } else if (attendeeIds.length > 0) {
-      setNotice(
-        `The event was cancelled and ${attendeeIds.length} attendee${attendeeIds.length === 1 ? " was" : "s were"} notified.`,
-      );
-    } else {
-      setNotice("The event was cancelled.");
-    }
+    // The backend sends the cancellation message to every attendee itself (spec 10).
+    setNotice("The event was cancelled and its attendees were notified.");
     setBusy(false);
     setPendingCancel(null);
   }
@@ -245,7 +217,7 @@ function ManageEvents() {
           <>
             This will mark <strong>{pendingCancel?.title}</strong> as cancelled. No new bookings
             will be accepted, existing bookings stay on record, and every attendee with a booking
-            will receive a notification message.
+            is notified by message.
           </>
         }
         confirmLabel="Cancel event"

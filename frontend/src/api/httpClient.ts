@@ -49,9 +49,12 @@ function refreshAccessToken(): Promise<string | null> {
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, auth = true, headers, isRetry, ...rest } = options;
 
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
   const finalHeaders: Record<string, string> = {
     Accept: "application/json",
-    ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    // For FormData the Content-Type (with its boundary) must be left to the browser.
+    ...(body !== undefined && !isFormData ? { "Content-Type": "application/json" } : {}),
     ...(headers as Record<string, string> | undefined),
   };
 
@@ -63,7 +66,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers: finalHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   });
 
   if (response.status === 401 && auth && !isRetry) {

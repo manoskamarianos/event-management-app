@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useEvents } from "@/context/EventsContext";
+import { api, describeError } from "@/api";
+import { useScopedData } from "@/hooks/useScopedData";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate, lowestPrice } from "@/lib/eventHelpers";
+import { toEventItem } from "@/lib/eventMappers";
 import StatusBadge from "@/components/StatusBadge";
 import Pagination from "@/components/Pagination";
-import SelectField from "@/components/SelectField";
 import FormField from "@/components/FormField";
 import RequireRole from "@/components/RequireRole";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function SearchEventsPage() {
   return (
@@ -20,54 +22,61 @@ export default function SearchEventsPage() {
   );
 }
 
+/** The API stores categories upper-cased; the filter is exact, so normalise what was typed. */
+function normalizeCategories(value: string) {
+  return value
+    .split(",")
+    .map((category) => category.trim().toUpperCase())
+    .filter(Boolean)
+    .join(",");
+}
+
 function SearchEvents() {
-  const { events, loading, error, refresh } = useEvents();
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const allCategories = useMemo(
-    () => Array.from(new Set(events.flatMap((e) => e.categories))).sort(),
-    [events],
-  );
-
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [city, setCity] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [page, setPage] = useState(1);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return events
-      .filter((event) => event.status !== "DRAFT")
-      .filter((event) => (category ? event.categories.includes(category) : true))
-      .filter((event) =>
-        city ? event.city.toLowerCase().includes(city.trim().toLowerCase()) : true,
-      )
-      .filter((event) =>
-        q
-          ? event.title.toLowerCase().includes(q) || event.description.toLowerCase().includes(q)
-          : true,
-      )
-      .filter((event) =>
-        startDate ? new Date(event.startDateTime) >= new Date(`${startDate}T00:00:00`) : true,
-      )
-      .filter((event) =>
-        endDate ? new Date(event.startDateTime) <= new Date(`${endDate}T23:59:59.999`) : true,
-      )
-      .filter((event) => (maxPrice ? lowestPrice(event) <= Number(maxPrice) : true));
-  }, [events, query, category, city, startDate, endDate, maxPrice]);
+  // Typing does not search on every keystroke.
+  const filters = useDebouncedValue(
+    { query, category, city, startDate, endDate, minPrice, maxPrice },
+    350,
+  );
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
-  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Free text and location are one API parameter: each word has to match some field.
+  const search = [filters.query, filters.city].map((part) => part.trim()).filter(Boolean).join(" ");
+  const scope = JSON.stringify({ search, filters, page });
 
-  function resetPage() {
-    setPage(1);
+  const fetchPage = useCallback(async () => {
+    const response = await api.events.searchEvents({
+      search,
+      category: normalizeCategories(filters.category),
+      priceMin: filters.minPrice === "" ? undefined : Number(filters.minPrice),
+      priceMax: filters.maxPrice === "" ? undefined : Number(filters.maxPrice),
+      startDate: filters.startDate ? new Date(`${filters.startDate}T00:00:00`).toISOString() : undefined,
+      endDate: filters.endDate ? new Date(`${filters.endDate}T23:59:59.999`).toISOString() : undefined,
+      page,
+      size: PAGE_SIZE,
+    });
+    return { count: response.count, events: response.results.map(toEventItem) };
+  }, [search, filters, page]);
+
+  const { data, error } = useScopedData(scope, fetchPage);
+  const loading = data === null && !error;
+  // An organizer also receives their own drafts here; those are not "browsable" events.
+  const pageItems = (data?.events ?? []).filter((event) => event.status !== "DRAFT");
+  const count = data?.count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
+
+  function changeFilter(setter: (value: string) => void) {
+    return (value: string) => {
+      setter(value);
+      setPage(1);
+    };
   }
 
   return (
@@ -77,12 +86,14 @@ function SearchEvents() {
           Browse events
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {loading
-            ? "Loading events…"
-            : `${filtered.length} event${filtered.length === 1 ? "" : "s"} found`}
+          {loading ? "Loading events…" : `${count} event${count === 1 ? "" : "s"} found`}
         </p>
 
-        {error && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error ? (
+          <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+            {describeError(error, "Could not load events.")}
+          </p>
+        ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-black/[.08] bg-white p-5 dark:border-white/[.145] dark:bg-zinc-900 sm:grid-cols-2 lg:grid-cols-3">
           <FormField
@@ -90,68 +101,54 @@ function SearchEvents() {
             label="Search title or description"
             placeholder="e.g. music, conference..."
             value={query}
-            onChange={(v) => {
-              setQuery(v);
-              resetPage();
-            }}
+            onChange={changeFilter(setQuery)}
           />
-          <SelectField
+          <FormField
             id="category"
             label="Category"
+            placeholder="e.g. Music, Theatre"
             value={category}
-            onChange={(v) => {
-              setCategory(v);
-              resetPage();
-            }}
-          >
-            <option value="">All categories</option>
-            {allCategories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </SelectField>
+            onChange={changeFilter(setCategory)}
+          />
           <FormField
             id="city"
             label="Location"
-            placeholder="City"
+            placeholder="City, country or venue"
             value={city}
-            onChange={(v) => {
-              setCity(v);
-              resetPage();
-            }}
+            onChange={changeFilter(setCity)}
           />
           <FormField
             id="startDate"
             label="From date"
             type="date"
             value={startDate}
-            onChange={(v) => {
-              setStartDate(v);
-              resetPage();
-            }}
+            onChange={changeFilter(setStartDate)}
           />
           <FormField
             id="endDate"
             label="To date"
             type="date"
             value={endDate}
-            onChange={(v) => {
-              setEndDate(v);
-              resetPage();
-            }}
+            onChange={changeFilter(setEndDate)}
           />
-          <FormField
-            id="maxPrice"
-            label="Max ticket price (€)"
-            type="number"
-            placeholder="e.g. 50"
-            value={maxPrice}
-            onChange={(v) => {
-              setMaxPrice(v);
-              resetPage();
-            }}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              id="minPrice"
+              label="Min price (€)"
+              type="number"
+              placeholder="0"
+              value={minPrice}
+              onChange={changeFilter(setMinPrice)}
+            />
+            <FormField
+              id="maxPrice"
+              label="Max price (€)"
+              type="number"
+              placeholder="50"
+              value={maxPrice}
+              onChange={changeFilter(setMaxPrice)}
+            />
+          </div>
         </div>
 
         <div className="mt-6 overflow-x-auto rounded-xl border border-black/[.08] dark:border-white/[.145]">
@@ -209,7 +206,7 @@ function SearchEvents() {
           </table>
         </div>
 
-        <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
       </div>
     </div>
   );
