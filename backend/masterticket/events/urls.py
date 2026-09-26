@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import ListEvents,CreateEvent,RetrieveEvent,ManageEvent
-from .views import ListBooking,CreateBooking,ModifyBooking,ConfirmBooking,CancelBooking
+from .views import ListBooking,CreateBooking,ModifyBooking,ConfirmBooking,CancelBooking,ListBookingsOfEvent
 from .views import Recommend
 
 app_name="events"
@@ -18,7 +18,7 @@ urlpatterns = [
     path("bookings/<int:pk>/modify/",ModifyBooking.as_view(),name="ModifyBooking"),
     path("bookings/<int:pk>/confirm/",ConfirmBooking.as_view(),name="ConfirmBooking"),
     path("bookings/<int:pk>/cancel/",CancelBooking.as_view(),name="CancelBooking"),
-    
+    path("MyEvents/<int:pk>/bookings/",ListBookingsOfEvent.as_view(),name="ListBookingsOfEvent"),
     ##Recommendation
     path("recommendation/", Recommend.as_view(),name="Recommend")
 ]

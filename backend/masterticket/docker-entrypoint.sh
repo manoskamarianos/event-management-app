@@ -19,30 +19,5 @@ ln -sf "$DATA_DIR/db.sqlite3" ./db.sqlite3
 
 python manage.py migrate --noinput
 
-# The spec requires a built-in administrator. Create it, or reset its password, on every start.
-if [ -n "$ADMIN_PASSWORD" ]; then
-    python manage.py shell -c "
-import os
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
-username = os.environ.get('ADMIN_USERNAME', 'admin')
-admin, created = User.objects.get_or_create(
-    username=username,
-    defaults={
-        'email': os.environ.get('ADMIN_EMAIL', 'admin@example.com'),
-        'first_name': 'Admin', 'last_name': 'Admin',
-        'telephone': '0', 'address': '-', 'taxNumber': '0', 'postcode': 0,
-    },
-)
-admin.role = 'admin'
-admin.approved = True
-admin.is_staff = True
-admin.is_superuser = True
-admin.set_password(os.environ['ADMIN_PASSWORD'])
-admin.save()
-print(('Created' if created else 'Updated') + ' admin user: ' + username)
-"
-fi
 
 exec "$@"
