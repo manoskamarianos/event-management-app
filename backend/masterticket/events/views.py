@@ -20,6 +20,8 @@ from .models import EventRating
 import os
 import numpy as np
 from django.conf import settings
+import threading
+from django.core.management import call_command
 
 
 ##Event views
@@ -86,7 +88,7 @@ class RetrieveEvent(generics.RetrieveAPIView):
         return event
 
 class ManageEvent(generics.GenericAPIView):
-    permission_classes= [IsOrganizer,IsAdmin]
+    permission_classes= [IsOrganizer|IsAdmin]
     
     def get_queryset(self):
         if self.request.user.role == "admin":
@@ -167,7 +169,7 @@ class CreateBooking(generics.CreateAPIView):
     serializer_class= BookingSerializer
     
 class ListBookingsOfEvent(generics.ListAPIView):
-    permission_classes= [IsAdmin,IsOrganizer]
+    permission_classes= [IsAdmin|IsOrganizer]
     serializer_class= BookingSerializer
     
     def get_queryset(self):
@@ -245,10 +247,12 @@ class ConfirmBooking(generics.GenericAPIView):
     
 ##Recommendation View
     
+
 class Recommend(generics.ListAPIView):
     permission_classes= [IsParticipant]
     serializer_class= EventReadSerializer
     Rec_vectors= None
+    IS_TRAINING= False
     
     @staticmethod
     def Rec_vectors_load():
@@ -259,16 +263,26 @@ class Recommend(generics.ListAPIView):
                 Recommend.Rec_vectors= {"V":data["V"],"F":data["F"],"b":data["b"],"c":data["c"],"m":data["m"],"users_map":data["users_map"].item(),"events_map":data["events_map"].item()}
         return Recommend.Rec_vectors
 
+    @staticmethod
+    def training():
+        try:
+            call_command("Full_Matrix_Factorization")
+        finally:
+            Recommend.IS_TRAINING = False
     
     def get(self,request, *args, **kwargs):
         
         uid= request.user.id 
-        Rec_vectors= self.Rec_vectors_load()
-        
-        if not Rec_vectors:
-            return Response({"error": "More interactions needed for recommendation."},
-                            status=status.HTTP_501_NOT_IMPLEMENTED)
-            
+        try:
+            Rec_vectors= self.Rec_vectors_load()
+            if not Rec_vectors:
+                raise FileNotFoundError
+        except FileNotFoundError:
+            if not Recommend.IS_TRAINING:
+                Recommend.IS_TRAINING = True
+                threading.Thread(target=Recommend.training).start()
+            return Response([], status=status.HTTP_200_OK)
+
         users_map= Rec_vectors["users_map"]
         events_map= Rec_vectors["events_map"]
         V= Rec_vectors["V"]
@@ -277,21 +291,24 @@ class Recommend(generics.ListAPIView):
         c= Rec_vectors["c"]
         m= Rec_vectors["m"]
         
-        if uid not in users_map:##might add fold in later
-            return Response({"error": "More interactions needed for recommendation."},
-                                            status=status.HTTP_200_OK)
-
+        if uid not in users_map:##might add fold in later for now retain the whole database 
+            if not Recommend.IS_TRAINING:
+                Recommend.IS_TRAINING = True
+                threading.Thread(target=Recommend.training).start()
+            return Response([], status=status.HTTP_200_OK)
+        
         Prediction_vector= m+b[users_map[uid]]+c+np.dot(F,V[users_map[uid]])
-        top_events= np.argsort(Prediction_vector)[::-1][:10]
+        top_events= np.argsort(Prediction_vector)[::-1][:20]
         
         events_map_inverted= {}
         for id, idx in events_map.items():
             events_map_inverted[idx]= id
+        
         rec_event_ids = []
         for idx in top_events:
             if idx in events_map_inverted:
                 rec_event_ids.append(events_map_inverted[idx])
-        database_events= Event.objects.filter(id__in= rec_event_ids)
+        database_events= Event.objects.filter(id__in= rec_event_ids,status="published")
         
         dict_event= {}
         for event in database_events:
