@@ -247,12 +247,12 @@ class ConfirmBooking(generics.GenericAPIView):
     
 ##Recommendation View
     
-IS_TRAINING= False
 
 class Recommend(generics.ListAPIView):
     permission_classes= [IsParticipant]
     serializer_class= EventReadSerializer
     Rec_vectors= None
+    IS_TRAINING= False
     
     @staticmethod
     def Rec_vectors_load():
@@ -265,11 +265,10 @@ class Recommend(generics.ListAPIView):
 
     @staticmethod
     def training():
-        global IS_TRAINING
         try:
             call_command("Full_Matrix_Factorization")
         finally:
-            IS_TRAINING = False
+            Recommend.IS_TRAINING = False
     
     def get(self,request, *args, **kwargs):
         
@@ -279,9 +278,8 @@ class Recommend(generics.ListAPIView):
             if not Rec_vectors:
                 raise FileNotFoundError
         except FileNotFoundError:
-            global IS_TRAINING
-            if not IS_TRAINING:
-                IS_TRAINING = True
+            if not Recommend.IS_TRAINING:
+                Recommend.IS_TRAINING = True
                 threading.Thread(target=Recommend.training).start()
             return Response([], status=status.HTTP_200_OK)
 
@@ -294,14 +292,13 @@ class Recommend(generics.ListAPIView):
         m= Rec_vectors["m"]
         
         if uid not in users_map:##might add fold in later for now retain the whole database 
-            global IS_TRAINING
-            if not IS_TRAINING:
-                IS_TRAINING = True
+            if not Recommend.IS_TRAINING:
+                Recommend.IS_TRAINING = True
                 threading.Thread(target=Recommend.training).start()
             return Response([], status=status.HTTP_200_OK)
         
         Prediction_vector= m+b[users_map[uid]]+c+np.dot(F,V[users_map[uid]])
-        top_events= np.argsort(Prediction_vector)[::-1][20]
+        top_events= np.argsort(Prediction_vector)[::-1][:20]
         
         events_map_inverted= {}
         for id, idx in events_map.items():
